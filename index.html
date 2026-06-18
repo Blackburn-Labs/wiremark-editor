@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/wiremark-icon.svg" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#282a36" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Wiremark" />
+    <meta
+      name="description"
+      content="Edit Wiremark wireframes locally in your browser or as a desktop PWA."
+    />
+    <title>Wiremark Editor</title>
+    <script>
+      // Capture the PWA install prompt as early as possible. Chrome can fire
+      // `beforeinstallprompt` before the React app mounts, so a listener added
+      // only inside the app would miss it. We stash the event on `window` here
+      // and `useInstallPrompt` adopts it on mount (and clears it once spent).
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        window.__wmDeferredInstallPrompt = e;
+      });
+      window.addEventListener('appinstalled', function () {
+        window.__wmDeferredInstallPrompt = null;
+      });
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

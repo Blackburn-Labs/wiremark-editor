@@ -1,0 +1,26 @@
+# Netlify deployment configuration for Wiremark Editor.
+# Static Vite SPA: build to dist/, serve at the site root, no backend.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  # Vite 8 requires Node ^20.19 || >=22.12; pin so Netlify never falls back to
+  # an older default that would fail the build.
+  NODE_VERSION = "22"
+
+  # Analytics (Aptabase). Set VITE_APTABASE_KEY in the Netlify UI
+  # (Site settings -> Environment variables), NOT here, so forks and
+  # deploy-preview builds don't report into the production project. When the
+  # var is unset, analytics is compiled out and nothing is sent
+  # (see src/utils/analytics.js). Key format: A-US-xxxxxxxxxx (or A-EU-...).
+
+# SPA history-mode fallback: the app uses createBrowserRouter, so any deep link
+# or page refresh must serve index.html and let the client router resolve it.
+# Netlify only applies this when no real file matches, so hashed build assets
+# (and the upcoming PWA service worker) are served directly, not rewritten.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

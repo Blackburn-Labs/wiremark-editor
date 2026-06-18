@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+dev-dist/
+build/
+storybook-static/
+*.tgz
+
+# test / coverage
+coverage/
+.nyc_output/
+packages/core/test/fixtures/*.svg
+tasks/
+
+# agent scratch (test-output redirect workaround)
+.claude-tmp/
+.qa-tmp/
+
+# editor / OS
+.DS_Store
+*.log
+.idea/
+.vscode/
+*.swp
+
+# env
+.env
+.env.local
