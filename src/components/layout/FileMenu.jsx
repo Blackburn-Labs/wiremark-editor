@@ -15,10 +15,17 @@
  *   only possible behavior, so a second download-everything item would be noise.
  * - Export renders the current `safeRender(source, mode).svg` then calls the
  *   matching `exporters.export*`.
+ * - Global keyboard shortcuts (captured on `window`): Cmd/Ctrl+S = Save,
+ *   Cmd/Ctrl+Shift+S = Save As, Cmd/Ctrl+O = Open. Calling `preventDefault()` on
+ *   these is the whole point -- it stops the browser (and the installed PWA)
+ *   from running its native "Save page as HTML" / "Open file" instead. They
+ *   reuse the same guarded handlers as the menu, so Open still prompts on
+ *   unsaved changes. FileMenu is always mounted, which is why the listener lives
+ *   here rather than in the menu's open/close lifecycle.
  *
  * Controlled via `anchorEl` + `open` + `onClose`.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { useDispatch, useSelector } from 'react-redux';
 import Menu from '@mui/material/Menu';
@@ -152,6 +159,40 @@ export default function FileMenu({ anchorEl, open, onClose }) {
     else if (kind === 'pdf') await exportPdf(svg, `${base}.pdf`);
     track(EVENTS.EXPORT, { format: kind });
   };
+
+  // Latest handlers, read by the once-attached window listener below. FileMenu
+  // re-renders on every keystroke (it subscribes to the source), so stashing the
+  // current handlers in a ref lets us subscribe once instead of re-binding the
+  // listener on each render.
+  const shortcutsRef = useRef(/** @type {*} */ (null));
+  shortcutsRef.current = { handleSave, handleSaveAs, handleOpen, canSaveAs };
+
+  useEffect(() => {
+    /** @param {KeyboardEvent} e */
+    const onKeyDown = (e) => {
+      // Platform's primary modifier: Cmd on macOS, Ctrl elsewhere. Ignore Alt
+      // and auto-repeat (holding the chord) so one press = one action.
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.repeat) return;
+      const key = e.key.toLowerCase();
+      const h = shortcutsRef.current;
+      if (key === 's') {
+        // The reason this whole feature exists: suppress the browser/PWA's
+        // native "Save page as HTML" so Cmd/Ctrl+S saves the wiremark instead.
+        e.preventDefault();
+        if (e.shiftKey) {
+          if (h.canSaveAs) h.handleSaveAs();
+        } else {
+          h.handleSave();
+        }
+      } else if (key === 'o' && !e.shiftKey) {
+        e.preventDefault();
+        h.handleOpen();
+      }
+    };
+    // Capture phase: intercept before the editor (CodeMirror) sees the chord.
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, []);
 
   return (
     <>
