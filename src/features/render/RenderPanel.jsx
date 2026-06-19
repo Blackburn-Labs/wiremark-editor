@@ -18,11 +18,12 @@
  * they stay in lock-step with the OutlineTree and the editor cursor sync.
  *
  * Click-to-escalate: the first click on a spot selects the innermost element
- * there; clicking the same spot again walks one level up the ancestry toward the
- * frame, and stops at the frame. The marching ants are drawn into the frame group
- * (not the element group) with the svg set to overflow:visible, so a full-bleed
- * element's -- or the frame's own -- ring is not trimmed by the frame clip or the
- * svg viewport.
+ * there; clicking the same spot again walks one level up the ancestry, and once
+ * more at the frame cycles back to the innermost. Hovering an element previews it
+ * (pointer cursor + OutlineTree highlight) so you can see what a click will pick.
+ * The marching ants are drawn into the frame group (not the element group) with
+ * the svg set to overflow:visible, so a full-bleed element's -- or the frame's
+ * own -- ring is not trimmed by the frame clip or the svg viewport.
  */
 import { useMemo, useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import PropTypes from 'prop-types';
