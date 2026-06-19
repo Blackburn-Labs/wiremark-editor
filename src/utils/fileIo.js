@@ -143,23 +143,40 @@ function openViaInput() {
 }
 
 /**
- * Save the given source. Behavior, in order:
+ * Save the given source to its current location:
  *  1. write through the stored handle when present (in-place save),
- *  2. else `showSaveFilePicker` when supported (and store the new handle),
- *  3. else trigger a download of `name || 'untitled.wiremark'`.
+ *  2. else behave like {@link saveWiremarkFileAs} -- prompt for a location when
+ *     supported (storing the new handle), or download a copy when not.
  *
  * @param {{ source: string, name?: string|null }} args
- * @returns {Promise<SaveResult>} `usedHandle` is true only for cases 1 and 2
+ * @returns {Promise<SaveResult>} `usedHandle` is true only when a handle was written
  */
 export async function saveWiremarkFile({ source, name }) {
-  const text = String(source ?? '');
-  const fileName = (name && String(name).trim()) || DEFAULT_NAME;
-  const w = getWindow();
-
   if (activeHandle) {
+    const text = String(source ?? '');
+    const fileName = (name && String(name).trim()) || DEFAULT_NAME;
     await writeThroughHandle(activeHandle, text);
     return { name: activeHandle.name || fileName, usedHandle: true };
   }
+  return saveWiremarkFileAs({ source, name });
+}
+
+/**
+ * Save the given source to a NEW location ("Save As"). Unlike
+ * {@link saveWiremarkFile}, this never writes through the stored handle, so it
+ * always lets the user pick a different name/location:
+ *  - `showSaveFilePicker` when supported (replacing the stored handle with the
+ *    chosen one, so subsequent in-place saves target the new file),
+ *  - else download a copy of `name || 'untitled.wiremark'`.
+ *
+ * @param {{ source: string, name?: string|null }} args
+ * @returns {Promise<SaveResult>} `usedHandle` is true only when a handle was
+ *   written (false on a downloaded copy or a cancelled picker)
+ */
+export async function saveWiremarkFileAs({ source, name }) {
+  const text = String(source ?? '');
+  const fileName = (name && String(name).trim()) || DEFAULT_NAME;
+  const w = getWindow();
 
   if (isFileSystemAccessSupported() && w) {
     let handle;

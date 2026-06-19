@@ -6,6 +6,7 @@ import {
   clearHandle,
   openWiremarkFile,
   saveWiremarkFile,
+  saveWiremarkFileAs,
 } from './fileIo.js';
 
 /** Snapshot of the globals we mutate, restored after each test. */
@@ -182,5 +183,67 @@ describe('saveWiremarkFile', () => {
     const result = await saveWiremarkFile({ source: 'data', name: null });
     expect(anchor.download).toBe('untitled.wiremark');
     expect(result.name).toBe('untitled.wiremark');
+  });
+});
+
+describe('saveWiremarkFileAs', () => {
+  it('always prompts (replacing any existing handle) instead of writing in place', async () => {
+    // Establish an initial in-place handle by opening a file first.
+    const oldHandle = {
+      name: 'old.wiremark',
+      getFile: () => Promise.resolve({ name: 'old.wiremark', text: () => Promise.resolve('old') }),
+      createWritable: vi.fn(() => Promise.resolve({ write: vi.fn(), close: vi.fn() })),
+    };
+    // The fresh handle the Save As picker hands back.
+    const write = vi.fn(() => Promise.resolve());
+    const close = vi.fn(() => Promise.resolve());
+    const newHandle = {
+      name: 'copy.wiremark',
+      createWritable: vi.fn(() => Promise.resolve({ write, close })),
+    };
+    // @ts-ignore
+    globalThis.showOpenFilePicker = vi.fn(() => Promise.resolve([oldHandle]));
+    // @ts-ignore
+    globalThis.showSaveFilePicker = vi.fn(() => Promise.resolve(newHandle));
+
+    await openWiremarkFile();
+    expect(hasActiveHandle()).toBe(true);
+
+    const result = await saveWiremarkFileAs({ source: 'fresh', name: 'old.wiremark' });
+
+    // Prompted for a new location rather than writing through the old handle...
+    expect(globalThis.showSaveFilePicker).toHaveBeenCalledOnce();
+    expect(oldHandle.createWritable).not.toHaveBeenCalled();
+    // ...and wrote to (and now retains) the newly chosen handle.
+    expect(write).toHaveBeenCalledWith('fresh');
+    expect(result).toEqual({ name: 'copy.wiremark', usedHandle: true });
+    expect(hasActiveHandle()).toBe(true);
+  });
+
+  it('returns usedHandle:false when the save picker is aborted', async () => {
+    const abort = Object.assign(new Error('x'), { name: 'AbortError' });
+    // @ts-ignore
+    globalThis.showOpenFilePicker = () => {};
+    // @ts-ignore
+    globalThis.showSaveFilePicker = vi.fn(() => Promise.reject(abort));
+
+    const result = await saveWiremarkFileAs({ source: 'hi', name: 'foo.wiremark' });
+    expect(result).toEqual({ name: 'foo.wiremark', usedHandle: false });
+    expect(hasActiveHandle()).toBe(false);
+  });
+
+  it('degrades to a download when the File System Access API is unsupported', async () => {
+    delete (/** @type {*} */ (globalThis).showOpenFilePicker);
+    delete (/** @type {*} */ (globalThis).showSaveFilePicker);
+
+    const anchor = /** @type {*} */ ({ click: vi.fn() });
+    // @ts-ignore
+    globalThis.document = { createElement: () => anchor, body: { appendChild: vi.fn(), removeChild: vi.fn() } };
+    // @ts-ignore
+    globalThis.URL = { createObjectURL: () => 'blob:as', revokeObjectURL: vi.fn() };
+
+    const result = await saveWiremarkFileAs({ source: 'data', name: 'thing.wiremark' });
+    expect(anchor.download).toBe('thing.wiremark');
+    expect(result).toEqual({ name: 'thing.wiremark', usedHandle: false });
   });
 });

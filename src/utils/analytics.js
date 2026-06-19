@@ -61,7 +61,7 @@ export const EVENTS = Object.freeze({
   EXPORT: 'export',
   /** A .wiremark file was opened. */
   FILE_OPEN: 'file_open',
-  /** The document was saved. props: { mode: 'save'|'download' } */
+  /** The document was saved. props: { mode: 'save'|'save_as'|'download' } */
   FILE_SAVE: 'file_save',
   /** A new document was started. */
   FILE_NEW: 'file_new',

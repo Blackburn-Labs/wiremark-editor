@@ -16,6 +16,7 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
+import Typography from '@mui/material/Typography';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import UndoIcon from '@mui/icons-material/Undo';
@@ -28,6 +29,7 @@ import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import {
   selectCanUndo,
   selectCanRedo,
+  selectFileName,
   undo,
   redo,
 } from '../../store/documentSlice.js';
@@ -48,6 +50,7 @@ export default function EditorAppBar() {
   const track = useTrack();
   const canUndo = useSelector(selectCanUndo);
   const canRedo = useSelector(selectCanRedo);
+  const fileName = useSelector(selectFileName);
   const viewMode = useSelector(selectViewMode);
 
   // PWA install lifecycle (transient browser state). Owned here so there is a
@@ -98,6 +101,25 @@ export default function EditorAppBar() {
         >
           Help
         </Button>
+
+        {/*
+          Name of the open file (omitted for a new/untitled doc). The browser's
+          File System Access API never exposes the absolute path -- only the file
+          name -- so the tooltip shows the full name (useful when the caption
+          truncates), not a directory path.
+        */}
+        {fileName && (
+          <Tooltip title={fileName}>
+            <Typography
+              variant="caption"
+              color="textDisabled"
+              noWrap
+              sx={{ ml: 2, maxWidth: 260, cursor: 'default' }}
+            >
+              {fileName}
+            </Typography>
+          </Tooltip>
+        )}
 
         <Box sx={{ flexGrow: 1 }} />
 

@@ -9,6 +9,10 @@
  * - Save uses `fileIo.saveWiremarkFile()` then `markSaved`. The label is "Save"
  *   when the File System Access API is supported or a handle exists, else
  *   "Download" (it degrades to a download).
+ * - Save As uses `fileIo.saveWiremarkFileAs()` (always prompts for a new
+ *   name/location) then `markSaved`. It is shown only when the File System
+ *   Access API is supported; without it, plain "Download" already covers the
+ *   only possible behavior, so a second download-everything item would be noise.
  * - Export renders the current `safeRender(source, mode).svg` then calls the
  *   matching `exporters.export*`.
  *
@@ -25,6 +29,7 @@ import Divider from '@mui/material/Divider';
 import NoteAddIcon from '@mui/icons-material/NoteAdd';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import SaveIcon from '@mui/icons-material/Save';
+import SaveAsIcon from '@mui/icons-material/SaveAs';
 import DownloadIcon from '@mui/icons-material/Download';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -41,6 +46,7 @@ import {
 import {
   openWiremarkFile,
   saveWiremarkFile,
+  saveWiremarkFileAs,
   isFileSystemAccessSupported,
 } from '../../utils/fileIo.js';
 import { safeRender } from '../../utils/wmRender.js';
@@ -66,6 +72,9 @@ export default function FileMenu({ anchorEl, open, onClose }) {
 
   const canSaveInPlace = isFileSystemAccessSupported() || hasHandle;
   const saveLabel = canSaveInPlace ? 'Save' : 'Download';
+  // "Save As" only makes sense when the platform can prompt for a location;
+  // otherwise it would be identical to the "Download" item above.
+  const canSaveAs = isFileSystemAccessSupported();
 
   const closeAll = () => {
     setExportAnchor(null);
@@ -121,6 +130,17 @@ export default function FileMenu({ anchorEl, open, onClose }) {
     }
   };
 
+  const handleSaveAs = async () => {
+    closeAll();
+    const result = await saveWiremarkFileAs({ source, name: fileName });
+    // Only commit on a real write -- a cancelled picker returns usedHandle:false
+    // and must leave the document untouched (still dirty, same name/handle).
+    if (result && result.usedHandle) {
+      dispatch(markSaved({ fileName: result.name }));
+      track(EVENTS.FILE_SAVE, { mode: 'save_as' });
+    }
+  };
+
   /** @param {'svg'|'png'|'pdf'} kind */
   const handleExport = async (kind) => {
     closeAll();
@@ -154,6 +174,14 @@ export default function FileMenu({ anchorEl, open, onClose }) {
           </ListItemIcon>
           <ListItemText>{saveLabel}</ListItemText>
         </MenuItem>
+        {canSaveAs && (
+          <MenuItem onClick={handleSaveAs}>
+            <ListItemIcon>
+              <SaveAsIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Save As...</ListItemText>
+          </MenuItem>
+        )}
         <Divider />
         <MenuItem
           onClick={(e) => setExportAnchor(e.currentTarget)}
