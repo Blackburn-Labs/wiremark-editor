@@ -24,13 +24,15 @@ import { useSelector, useDispatch } from 'react-redux';
 import { Box } from '@mui/material';
 import CodeMirror from '@uiw/react-codemirror';
 import { autocompletion } from '@codemirror/autocomplete';
-import { EditorView } from '@codemirror/view';
+import { EditorView, keymap } from '@codemirror/view';
+import { Prec } from '@codemirror/state';
 
 import { selectSource, setSource, selectLineIndex } from '../../store/documentSlice.js';
 import { selectSelectedElementId, selectElement } from '../../store/uiSlice.js';
 import { useResolvedThemeMode } from '../../theme/ThemeModeProvider.jsx';
 import { wiremarkLanguage, wiremarkHighlighting } from './wiremarkLanguage.js';
 import { wiremarkCompletionSource } from './wiremarkCompletions.js';
+import { insertSmartNewline } from './smartNewline.js';
 
 /**
  * @param {object} props
@@ -55,6 +57,9 @@ export default function WiremarkEditor({ height = '100%' }) {
 
   const extensions = useMemo(
     () => [
+      // Structure-aware Enter. Highest precedence so it overrides basicSetup's
+      // default Enter; the command itself defers to an active autocomplete.
+      Prec.highest(keymap.of([{ key: 'Enter', run: insertSmartNewline }])),
       wiremarkLanguage(),
       wiremarkHighlighting(resolvedMode),
       autocompletion({ override: [wiremarkCompletionSource] }),
@@ -79,6 +84,11 @@ export default function WiremarkEditor({ height = '100%' }) {
     /** @param {import('@codemirror/view').ViewUpdate} vu */
     (vu) => {
       if (!vu.selectionSet) return;
+      // Don't re-derive selection from the caret during an edit: the line index
+      // is stale until Redux re-parses, so a caret moved by typing/Enter would
+      // map to the wrong element and yank the caret away. Genuine navigation
+      // (clicks, arrow keys) carries no doc change and still syncs.
+      if (vu.docChanged) return;
       if (suppressRef.current) {
         suppressRef.current = false;
         return;

@@ -24,7 +24,7 @@
  * @typedef {{ line: number, severity: 'error'|'warning', message: string }} Diagnostic
  */
 
-const INDENT_WIDTH = 2;
+export const INDENT_WIDTH = 2;
 
 /**
  * Parse wiremark source text into an editable tree. Never throws.
@@ -132,7 +132,7 @@ export function parse(source) {
  * @param {string} line
  * @returns {{ indentCols: number, rest: string, hadTab: boolean }}
  */
-function measureIndent(line) {
+export function measureIndent(line) {
   let cols = 0;
   let i = 0;
   let hadTab = false;
@@ -181,6 +181,20 @@ function parseContentLine(text) {
   /** @type {Token} */
   const captured = { kind: 'keyless', value: body.trim(), quoted: false };
   return { component: '', tokens: [captured], comment, isComponent: false };
+}
+
+/**
+ * The component name on a single raw source line, or `''` when the line is
+ * blank, a full-line comment, or does not start with a PascalCase component.
+ * Mirrors how `parse()` classifies a content line; tolerant, never throws.
+ * @param {string} rawLine
+ * @returns {string}
+ */
+export function componentOnLine(rawLine) {
+  const { rest } = measureIndent(rawLine);
+  const trimmed = rest.trim();
+  if (trimmed === '' || trimmed.startsWith('//')) return '';
+  return parseContentLine(trimmed).component;
 }
 
 /**
