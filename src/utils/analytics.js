@@ -65,6 +65,6 @@ export const EVENTS = Object.freeze({
   FILE_SAVE: 'file_save',
   /** A new document was started. */
   FILE_NEW: 'file_new',
-  /** View mode changed. props: { mode: 'text'|'split'|'render' } */
-  VIEW_MODE: 'view_mode',
+  /** A workspace pane was toggled. props: { pane, visible, trigger } */
+  PANE_TOGGLE: 'pane_toggle',
 });

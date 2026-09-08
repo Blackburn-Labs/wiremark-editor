@@ -3,12 +3,12 @@
  * EditorAppBar -- the top app bar (SPEC layout mockup). Contains the BrandLogo,
  * a "File" button (opens FileMenu), a "Help" button (opens HelpMenu), a flexible
  * spacer, Undo/Redo IconButtons (disabled per `selectCanUndo`/`selectCanRedo`),
- * the ThemeModeToggle, and a tri-state ToggleButtonGroup bound to `viewMode`
- * (Article=text, ViewAgenda=split, Dashboard=render).
+ * the ThemeModeToggle, and four independent pane toggles with Alt+1 through
+ * Alt+4 shortcuts.
  *
  * Menu anchors are local component state (transient UI, not Redux).
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
@@ -21,9 +21,10 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import UndoIcon from '@mui/icons-material/Undo';
 import RedoIcon from '@mui/icons-material/Redo';
+import WidgetsIcon from '@mui/icons-material/Widgets';
 import FormatIndentIncreaseIcon from '@mui/icons-material/FormatIndentIncrease';
-import VerticalSplitIcon from '@mui/icons-material/VerticalSplit';
 import DashboardIcon from '@mui/icons-material/Dashboard';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 
 import {
@@ -33,7 +34,12 @@ import {
   undo,
   redo,
 } from '../../store/documentSlice.js';
-import { selectViewMode, setViewMode } from '../../store/uiSlice.js';
+import {
+  PANE_IDS,
+  selectVisiblePanes,
+  setVisiblePanes,
+  togglePane,
+} from '../../store/uiSlice.js';
 import useInstallPrompt from '../../hooks/useInstallPrompt.js';
 import useTrack from '../../hooks/useTrack.js';
 import { canOfferInstall } from '../../utils/pwaInstall.js';
@@ -45,13 +51,34 @@ import ThemeModeToggle from './ThemeModeToggle.jsx';
 import InstallButton from './InstallButton.jsx';
 import InstallInstructionsDialog from './InstallInstructionsDialog.jsx';
 
+const PANE_CONTROLS = Object.freeze([
+  { id: 'components', label: 'Components', shortcut: 'Alt+1', code: 'Digit1', Icon: WidgetsIcon },
+  {
+    id: 'editor',
+    label: 'Editor',
+    shortcut: 'Alt+2',
+    code: 'Digit2',
+    Icon: FormatIndentIncreaseIcon,
+  },
+  { id: 'renderer', label: 'Renderer', shortcut: 'Alt+3', code: 'Digit3', Icon: DashboardIcon },
+  {
+    id: 'inspector',
+    label: 'Inspector',
+    shortcut: 'Alt+4',
+    code: 'Digit4',
+    Icon: AccountTreeIcon,
+  },
+]);
+
 export default function EditorAppBar() {
   const dispatch = useDispatch();
   const track = useTrack();
   const canUndo = useSelector(selectCanUndo);
   const canRedo = useSelector(selectCanRedo);
   const fileName = useSelector(selectFileName);
-  const viewMode = useSelector(selectViewMode);
+  const visiblePanes = useSelector(selectVisiblePanes);
+  const visiblePanesRef = useRef(visiblePanes);
+  visiblePanesRef.current = visiblePanes;
 
   // PWA install lifecycle (transient browser state). Owned here so there is a
   // single capture site + one instructions dialog shared with the Help menu.
@@ -61,13 +88,46 @@ export default function EditorAppBar() {
   const [helpAnchor, setHelpAnchor] = useState(null);
   const [installOpen, setInstallOpen] = useState(false);
 
-  /** @param {*} _e @param {'text'|'split'|'render'|null} next */
-  const handleViewMode = (_e, next) => {
-    if (next) {
-      dispatch(setViewMode(next));
-      track(EVENTS.VIEW_MODE, { mode: next });
-    }
+  /** @param {*} _e @param {string[]} next */
+  const handleVisiblePanes = (_e, next) => {
+    const pane = PANE_IDS.find((id) => visiblePanes.includes(id) !== next.includes(id));
+    if (!pane) return;
+    dispatch(setVisiblePanes(next));
+    track(EVENTS.PANE_TOGGLE, {
+      pane,
+      visible: next.includes(pane),
+      trigger: 'toolbar',
+    });
   };
+
+  useEffect(() => {
+    /** @param {KeyboardEvent} event */
+    const handlePaneShortcut = (event) => {
+      if (
+        !event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        event.repeat ||
+        event.isComposing
+      ) {
+        return;
+      }
+      const control = PANE_CONTROLS.find(({ code }) => code === event.code);
+      if (!control) return;
+      event.preventDefault();
+      const visible = !visiblePanesRef.current.includes(control.id);
+      dispatch(togglePane(control.id));
+      track(EVENTS.PANE_TOGGLE, {
+        pane: control.id,
+        visible,
+        trigger: 'keyboard',
+      });
+    };
+
+    window.addEventListener('keydown', handlePaneShortcut, true);
+    return () => window.removeEventListener('keydown', handlePaneShortcut, true);
+  }, [dispatch, track]);
 
   const showInstall = canOfferInstall({ isInstalled, canPromptNative, platform });
 
@@ -159,27 +219,22 @@ export default function EditorAppBar() {
 
         <ToggleButtonGroup
           size="small"
-          exclusive
-          value={viewMode}
-          onChange={handleViewMode}
-          aria-label="View mode"
+          value={visiblePanes}
+          onChange={handleVisiblePanes}
+          aria-label="Visible panes"
           sx={{ ml: 1 }}
         >
-          <ToggleButton value="text" aria-label="Text only">
-            <Tooltip title="Text only">
-              <FormatIndentIncreaseIcon fontSize="small" />
+          {PANE_CONTROLS.map(({ id, label, shortcut, Icon }) => (
+            <Tooltip title={`Toggle ${label.toLowerCase()} (${shortcut})`} key={id}>
+              <ToggleButton
+                value={id}
+                aria-label={`Toggle ${label.toLowerCase()}`}
+                aria-keyshortcuts={shortcut}
+              >
+                <Icon fontSize="small" />
+              </ToggleButton>
             </Tooltip>
-          </ToggleButton>
-          <ToggleButton value="split" aria-label="Split view">
-            <Tooltip title="Split view">
-              <VerticalSplitIcon fontSize="small" />
-            </Tooltip>
-          </ToggleButton>
-          <ToggleButton value="render" aria-label="Render only">
-            <Tooltip title="Render only">
-              <DashboardIcon fontSize="small" />
-            </Tooltip>
-          </ToggleButton>
+          ))}
         </ToggleButtonGroup>
       </Toolbar>
 
