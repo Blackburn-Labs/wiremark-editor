@@ -70,6 +70,80 @@ describe('uiSlice', () => {
     ]);
   });
 
+  describe('editor/renderer are never both hidden', () => {
+    const ALL = ['components', 'editor', 'renderer', 'inspector'];
+
+    it('either content pane can be hidden while both are visible', () => {
+      const initial = reducer(undefined, { type: '@@INIT' });
+      expect(reducer(initial, togglePane('editor')).visiblePanes).toEqual([
+        'components',
+        'renderer',
+        'inspector',
+      ]);
+      expect(reducer(initial, togglePane('renderer')).visiblePanes).toEqual([
+        'components',
+        'editor',
+        'inspector',
+      ]);
+    });
+
+    it('hiding the editor while the renderer is hidden swaps to the renderer', () => {
+      let state = reducer(undefined, { type: '@@INIT' });
+      state = reducer(state, togglePane('renderer'));
+      state = reducer(state, togglePane('editor'));
+      expect(selectVisiblePanes(root(state))).toEqual(['components', 'renderer', 'inspector']);
+      expect(localStorage.getItem('wiremark.visiblePanes')).toBe(
+        '["components","renderer","inspector"]',
+      );
+    });
+
+    it('hiding the renderer while the editor is hidden swaps to the editor', () => {
+      let state = reducer(undefined, { type: '@@INIT' });
+      state = reducer(state, togglePane('editor'));
+      state = reducer(state, togglePane('renderer'));
+      expect(selectVisiblePanes(root(state))).toEqual(['components', 'editor', 'inspector']);
+    });
+
+    it('repeating the shortcut flips between full-width editor and renderer', () => {
+      let state = reducer(undefined, { type: '@@INIT' });
+      state = reducer(state, togglePane('renderer'));
+      state = reducer(state, togglePane('editor'));
+      expect(state.visiblePanes).toEqual(['components', 'renderer', 'inspector']);
+      state = reducer(state, togglePane('renderer'));
+      expect(state.visiblePanes).toEqual(['components', 'editor', 'inspector']);
+    });
+
+    it('applies the same swap through setVisiblePanes (toolbar path)', () => {
+      let state = reducer(undefined, { type: '@@INIT' });
+      state = reducer(state, setVisiblePanes(['editor']));
+      state = reducer(state, setVisiblePanes([]));
+      expect(state.visiblePanes).toEqual(['renderer']);
+      state = reducer(state, setVisiblePanes(['inspector']));
+      expect(state.visiblePanes).toEqual(['editor', 'inspector']);
+    });
+
+    it('restores the editor if both content panes are dropped at once', () => {
+      const initial = reducer(undefined, { type: '@@INIT' });
+      expect(reducer(initial, setVisiblePanes(['components'])).visiblePanes).toEqual([
+        'components',
+        'editor',
+      ]);
+    });
+
+    it('leaves components and inspector freely toggleable', () => {
+      let state = reducer(undefined, { type: '@@INIT' });
+      state = reducer(state, togglePane('components'));
+      state = reducer(state, togglePane('inspector'));
+      expect(state.visiblePanes).toEqual(['editor', 'renderer']);
+      state = reducer(state, togglePane('renderer'));
+      state = reducer(state, togglePane('components'));
+      expect(state.visiblePanes).toEqual(['components', 'editor']);
+      state = reducer(state, togglePane('inspector'));
+      state = reducer(state, togglePane('renderer'));
+      expect(state.visiblePanes).toEqual(ALL);
+    });
+  });
+
   it('restores persisted pane visibility', async () => {
     localStorage.setItem('wiremark.visiblePanes', '["renderer","editor"]');
     localStorage.setItem('wiremark.editorWidthPercent', '63');

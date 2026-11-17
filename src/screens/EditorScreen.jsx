@@ -8,6 +8,7 @@
  * Alt+1 through Alt+4 (Cmd+Option+1..4 on macOS). The inspector column contains
  * the outline tree and property inspector stacked vertically.
  */
+import { useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import Box from '@mui/material/Box';
 
@@ -35,6 +36,12 @@ export default function EditorScreen() {
   const showRenderer = visiblePanes.includes('renderer');
   const showInspector = visiblePanes.includes('inspector');
 
+  // Once the editor has been hidden, re-showing it (toolbar, shortcut, or the
+  // editor/renderer swap) mounts it with focus so you can keep typing. Not set
+  // on first load, so opening the app doesn't steal focus.
+  const editorWasHiddenRef = useRef(false);
+  if (!showEditor) editorWasHiddenRef.current = true;
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       <EditorAppBar />
@@ -52,7 +59,7 @@ export default function EditorScreen() {
                 display: 'flex',
               }}
             >
-              <WiremarkEditor />
+              <WiremarkEditor autoFocus={editorWasHiddenRef.current} />
             </Box>
           )}
           {showEditor && showRenderer && (

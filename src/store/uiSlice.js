@@ -39,6 +39,25 @@ function normalizePaneIds(value) {
   return PANE_IDS.filter((pane) => value.includes(pane));
 }
 
+/**
+ * Enforce "the editor or the renderer is always visible" (the components and
+ * inspector panes are free to toggle). Hiding the last visible content pane
+ * swaps to the other one instead of leaving an empty workspace, so the toolbar
+ * button / shortcut always does something visible:
+ *   - editor only    + hide editor   -> renderer only
+ *   - renderer only  + hide renderer -> editor only
+ * If both are dropped at once (not possible from the UI), the editor wins.
+ * @param {PaneId[]} prev the panes visible before the change
+ * @param {PaneId[]} next the requested panes (normalized order)
+ * @returns {PaneId[]} `next`, with the other content pane added if needed
+ */
+function keepContentPaneVisible(prev, next) {
+  if (next.includes('editor') || next.includes('renderer')) return next;
+  const restore =
+    prev.includes('editor') && !prev.includes('renderer') ? 'renderer' : 'editor';
+  return PANE_IDS.filter((pane) => pane === restore || next.includes(pane));
+}
+
 /** @param {*} value @returns {number|null} */
 function normalizeEditorWidth(value) {
   const width = Number(value);
@@ -125,15 +144,16 @@ const uiSlice = createSlice({
     setVisiblePanes(state, action) {
       const panes = normalizePaneIds(action.payload);
       if (panes === null) return;
-      state.visiblePanes = panes;
-      persistVisiblePanes(panes);
+      state.visiblePanes = keepContentPaneVisible(state.visiblePanes, panes);
+      persistVisiblePanes(state.visiblePanes);
     },
     togglePane(state, action) {
       const pane = action.payload;
       if (!isPaneId(pane)) return;
-      state.visiblePanes = state.visiblePanes.includes(pane)
+      const next = state.visiblePanes.includes(pane)
         ? state.visiblePanes.filter((item) => item !== pane)
         : PANE_IDS.filter((item) => item === pane || state.visiblePanes.includes(item));
+      state.visiblePanes = keepContentPaneVisible(state.visiblePanes, next);
       persistVisiblePanes(state.visiblePanes);
     },
     setEditorWidthPercent(state, action) {
