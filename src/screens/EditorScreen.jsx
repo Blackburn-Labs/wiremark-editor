@@ -5,8 +5,8 @@
  *   | ComponentDrawer (left) | workspace | inspector rail (right) |
  *
  * Each of the four columns can be shown independently from the toolbar or with
- * Alt+1 through Alt+4. The inspector column contains the outline tree and
- * property inspector stacked vertically.
+ * Alt+1 through Alt+4 (Cmd+Option+1..4 on macOS). The inspector column contains
+ * the outline tree and property inspector stacked vertically.
  */
 import { useDispatch, useSelector } from 'react-redux';
 import Box from '@mui/material/Box';

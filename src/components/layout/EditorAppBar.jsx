@@ -4,7 +4,8 @@
  * a "File" button (opens FileMenu), a "Help" button (opens HelpMenu), a flexible
  * spacer, Undo/Redo IconButtons (disabled per `selectCanUndo`/`selectCanRedo`),
  * the ThemeModeToggle, and four independent pane toggles with Alt+1 through
- * Alt+4 shortcuts.
+ * Alt+4 shortcuts (Cmd+Option+1..4 on macOS -- plain Option+digit types
+ * characters there; see utils/paneShortcuts).
  *
  * Menu anchors are local component state (transient UI, not Redux).
  */
@@ -43,6 +44,12 @@ import {
 import useInstallPrompt from '../../hooks/useInstallPrompt.js';
 import useTrack from '../../hooks/useTrack.js';
 import { canOfferInstall } from '../../utils/pwaInstall.js';
+import {
+  isApplePlatform,
+  matchPaneShortcut,
+  paneShortcutAria,
+  paneShortcutLabel,
+} from '../../utils/paneShortcuts.js';
 import { EVENTS } from '../../utils/analytics.js';
 import BrandLogo from '../common/BrandLogo.jsx';
 import FileMenu from './FileMenu.jsx';
@@ -51,24 +58,16 @@ import ThemeModeToggle from './ThemeModeToggle.jsx';
 import InstallButton from './InstallButton.jsx';
 import InstallInstructionsDialog from './InstallInstructionsDialog.jsx';
 
+// Toolbar order == shortcut digit order (index 0 -> Alt+1 / Cmd+Option+1).
 const PANE_CONTROLS = Object.freeze([
-  { id: 'components', label: 'Components', shortcut: 'Alt+1', code: 'Digit1', Icon: WidgetsIcon },
-  {
-    id: 'editor',
-    label: 'Editor',
-    shortcut: 'Alt+2',
-    code: 'Digit2',
-    Icon: FormatIndentIncreaseIcon,
-  },
-  { id: 'renderer', label: 'Renderer', shortcut: 'Alt+3', code: 'Digit3', Icon: DashboardIcon },
-  {
-    id: 'inspector',
-    label: 'Inspector',
-    shortcut: 'Alt+4',
-    code: 'Digit4',
-    Icon: AccountTreeIcon,
-  },
+  { id: 'components', label: 'Components', Icon: WidgetsIcon },
+  { id: 'editor', label: 'Editor', Icon: FormatIndentIncreaseIcon },
+  { id: 'renderer', label: 'Renderer', Icon: DashboardIcon },
+  { id: 'inspector', label: 'Inspector', Icon: AccountTreeIcon },
 ]);
+
+// Cmd+Option+N on Apple platforms, Alt+N elsewhere (see utils/paneShortcuts).
+const IS_APPLE = isApplePlatform(typeof navigator !== 'undefined' ? navigator : undefined);
 
 export default function EditorAppBar() {
   const dispatch = useDispatch();
@@ -103,18 +102,9 @@ export default function EditorAppBar() {
   useEffect(() => {
     /** @param {KeyboardEvent} event */
     const handlePaneShortcut = (event) => {
-      if (
-        !event.altKey ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.shiftKey ||
-        event.repeat ||
-        event.isComposing
-      ) {
-        return;
-      }
-      const control = PANE_CONTROLS.find(({ code }) => code === event.code);
-      if (!control) return;
+      const index = matchPaneShortcut(event, IS_APPLE, PANE_CONTROLS.length);
+      if (index < 0) return;
+      const control = PANE_CONTROLS[index];
       event.preventDefault();
       const visible = !visiblePanesRef.current.includes(control.id);
       dispatch(togglePane(control.id));
@@ -224,12 +214,15 @@ export default function EditorAppBar() {
           aria-label="Visible panes"
           sx={{ ml: 1 }}
         >
-          {PANE_CONTROLS.map(({ id, label, shortcut, Icon }) => (
-            <Tooltip title={`Toggle ${label.toLowerCase()} (${shortcut})`} key={id}>
+          {PANE_CONTROLS.map(({ id, label, Icon }, index) => (
+            <Tooltip
+              title={`Toggle ${label.toLowerCase()} (${paneShortcutLabel(index, IS_APPLE)})`}
+              key={id}
+            >
               <ToggleButton
                 value={id}
                 aria-label={`Toggle ${label.toLowerCase()}`}
-                aria-keyshortcuts={shortcut}
+                aria-keyshortcuts={paneShortcutAria(index, IS_APPLE)}
               >
                 <Icon fontSize="small" />
               </ToggleButton>
