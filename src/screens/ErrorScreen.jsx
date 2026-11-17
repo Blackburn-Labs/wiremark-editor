@@ -4,7 +4,14 @@
  * tree lands here (instead of React Router's bare default) with a friendly,
  * recoverable message. The wiremark source lives in the store + (after Save) on
  * disk, so reloading is safe.
+ *
+ * The error is reported to Sentry (a no-op when monitoring is disabled). React
+ * Router's boundary swallows route errors in production, so this capture is what
+ * makes them visible; the SDK skips an Error object it already captured via the
+ * React root hooks, so there is no duplicate.
  */
+import { useEffect } from 'react';
+import { captureException } from '@sentry/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
@@ -15,6 +22,15 @@ import BrandLogo from '../components/common/BrandLogo.jsx';
 
 export default function ErrorScreen() {
   const error = useRouteError();
+
+  useEffect(() => {
+    try {
+      captureException(error);
+    } catch {
+      // Monitoring must never break the error screen itself.
+    }
+  }, [error]);
+
   const message =
     (error && (error.message || (typeof error === 'string' ? error : ''))) || 'Unexpected error';
 

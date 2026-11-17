@@ -16,6 +16,16 @@
   # var is unset, analytics is compiled out and nothing is sent
   # (see src/utils/analytics.js). Key format: A-US-xxxxxxxxxx (or A-EU-...).
 
+  # Error monitoring (Sentry). Also set in the Netlify UI, not here:
+  #   VITE_SENTRY_DSN   -- the wiremark-editor project's DSN (public; ships in
+  #                        client JS). Unset = Sentry compiled out, nothing sent.
+  #   SENTRY_AUTH_TOKEN -- org auth token (secret) used only at build time to
+  #                        upload source maps; unset = no maps generated/uploaded.
+  # Privacy settings and scrubbers: src/utils/monitoring.js.
+  # The Sentry environment comes from Netlify's own CONTEXT variable, so only
+  # production deploys report as "production"; deploy previews and branch
+  # deploys report as "deploy-preview" / "branch-deploy".
+
 # SPA history-mode fallback: the app uses createBrowserRouter, so any deep link
 # or page refresh must serve index.html and let the client router resolve it.
 # Netlify only applies this when no real file matches, so hashed build assets

@@ -118,13 +118,18 @@ utils/       Pure business logic (the bulk of the unit tests):
              wmRender.safeRender (the ONLY entry to core render),
              exporters (svg/png/pdf), fileIo (open/save), pathId, lineIndex,
              completionContext, iconNames, analytics (Aptabase event names +
-             surfaceTag + the isAnalyticsEnabled gate; pure/testable).
+             surfaceTag + the isAnalyticsEnabled gate; pure/testable),
+             monitoring (Sentry gate, privacy settings + event/span/breadcrumb
+             scrubbers; pure/testable).
 store/       Redux Toolkit. documentSlice (source + history), uiSlice
              (themeMode/visiblePanes/selectedElementId), thunks, index.
 theme/       MUI light/dark theme + ThemeModeProvider + useResolvedThemeMode().
-config/      Plain JS constants (externalLinks: the UI's outbound URLs). The one
-             build-time env var is VITE_APTABASE_KEY (analytics) -- set in the
-             Netlify build, absent in dev/test/Storybook so analytics stays off.
+config/      Plain JS constants (externalLinks: the UI's outbound URLs). Build-time
+             env vars, all set in the Netlify UI and absent in test/Storybook:
+             VITE_APTABASE_KEY (analytics), VITE_SENTRY_DSN (error monitoring;
+             may also live in a git-ignored .env.local for local testing) and
+             SENTRY_AUTH_TOKEN (build-only source-map upload).
+instrument.js  Sentry.init -- MUST stay the first import in main.jsx.
 components/
   common/    Reusable bits (BrandLogo, ConfirmDialog, ExternalLink).
   layout/    App chrome: EditorAppBar, FileMenu, HelpMenu, AboutDialog,
@@ -192,6 +197,20 @@ Every component in `components/` and `features/` has a co-located
   `VITE_APTABASE_KEY` is set (dev/test/Storybook send nothing) and swallows all
   errors. Event names + props live in `utils/analytics.js` (`EVENTS`); props must
   be flat scalars and must never include wireframe content.
+- **Error monitoring (Sentry) runs at maximum privacy and must never ship
+  wireframe content, file names, IPs or identity.** It is gated on
+  `VITE_SENTRY_DSN` and initialized in `src/instrument.js`; every privacy
+  setting and scrubber lives in `utils/monitoring.js` (unit-tested). Known leak
+  paths it closes: DOM selectors include `aria-label`/`title` (e.g. the file-name
+  tooltip) so UI/console breadcrumbs and INP are off and selector span attributes
+  are stripped; `WiremarkError` messages quote document text so they are
+  redacted. **Never add Session Replay, `createReduxEnhancer`, the console-logging
+  integration, or `Sentry.setUser`.** Source maps upload only when
+  `SENTRY_AUTH_TOKEN` is set and are deleted from `dist/` after upload. The
+  Sentry `environment` comes from Netlify's build-time `CONTEXT` (injected as
+  `__DEPLOY_CONTEXT__`), so only real production deploys report `production`
+  (local builds report `local`/`development`) -- alerts filter on it. If what
+  is collected changes, update `PrivacyDialog` to match.
 
 ## Testing strategy
 
