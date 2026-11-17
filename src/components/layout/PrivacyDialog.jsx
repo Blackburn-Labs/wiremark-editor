@@ -4,8 +4,10 @@
  * handles user data: wireframe content stays on the user's device (it lives only
  * in memory while editing and in the .wiremark files they choose to save), the
  * app is an open-source, backend-less, offline PWA, exports are generated
- * locally, and the only analytics is privacy-first Aptabase (no cookies, no IP,
- * no personal data, never any wireframe content). A footer button links out to
+ * locally, the only analytics is privacy-first Aptabase (no cookies, no IP,
+ * no personal data, never any wireframe content), and crash reports go to Sentry
+ * with identity/IP collection off and document content scrubbed (see
+ * utils/monitoring.js -- keep this copy in sync with it). A footer button links out to
  * `ISSUES_URL` for reporting an issue or privacy concern. Fully controlled via
  * `open` + `onClose`.
  */
@@ -21,7 +23,12 @@ import SecurityIcon from '@mui/icons-material/Security';
 import BugReportIcon from '@mui/icons-material/BugReport';
 
 import ExternalLink from '../common/ExternalLink.jsx';
-import { SOURCE_URL, APTABASE_PRIVACY_URL, ISSUES_URL } from '../../config/externalLinks.js';
+import {
+  SOURCE_URL,
+  APTABASE_PRIVACY_URL,
+  SENTRY_PRIVACY_URL,
+  ISSUES_URL,
+} from '../../config/externalLinks.js';
 
 export default function PrivacyDialog({ open, onClose }) {
   return (
@@ -62,6 +69,16 @@ export default function PrivacyDialog({ open, onClose }) {
             (such as which features are used and how often). Aptabase uses no cookies,
             collects no IP address, and stores no personal data -- and we never send
             any of your document's content.
+          </Typography>
+
+          <Typography>
+            If the editor hits an unexpected error, it sends a crash report to{' '}
+            <ExternalLink href={SENTRY_PRIVACY_URL}>Sentry</ExternalLink> so we can
+            fix it. Reports contain only technical details: the error type, where in
+            the app&apos;s code it happened, your browser and operating system, and
+            the app version. They never include your document&apos;s content or file
+            names, and reporting is configured not to collect your IP address or any
+            information that identifies you.
           </Typography>
 
           <Typography>

@@ -15,7 +15,9 @@ const config = {
     // VitePWA() returns a nested array of plugins, so flatten before filtering.
     viteConfig.plugins = (viteConfig.plugins ?? []).flat(Infinity).filter((plugin) => {
       const name = plugin?.name ?? '';
-      return !name.includes('pwa') && !name.includes('workbox');
+      // Also drop Sentry's source-map upload plugin (only present when
+      // SENTRY_AUTH_TOKEN is set) -- Storybook builds must never upload.
+      return !name.includes('pwa') && !name.includes('workbox') && !name.includes('sentry');
     });
     return viteConfig;
   },
