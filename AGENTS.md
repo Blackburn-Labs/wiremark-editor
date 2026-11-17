@@ -10,9 +10,9 @@ the `wiremark` skill (`reference.md`) is authoritative.
 
 **Wiremark Editor** — a React SPA/PWA for editing [wiremark](https://wiremark.dev)
 wireframes (a plain-text, indentation-significant wireframe DSL that renders to a
-hand-drawn SVG). IntelliJ-markdown-style editing: a text editor on one side, a
-live rendered preview on the other, with a tri-state toggle (text / split /
-render).
+hand-drawn SVG). IntelliJ-markdown-style editing: independently toggleable
+components, editor, renderer, and inspector panes, with a resizable editor /
+renderer split.
 
 - **Local-only, no backend, no auth.** Files are opened/saved to the user's
   machine; export to SVG/PNG/PDF. Works in-browser and packaged as a desktop PWA.
@@ -122,7 +122,7 @@ utils/       Pure business logic (the bulk of the unit tests):
              monitoring (Sentry gate, privacy settings + event/span/breadcrumb
              scrubbers; pure/testable).
 store/       Redux Toolkit. documentSlice (source + history), uiSlice
-             (themeMode/viewMode/selectedElementId), thunks, index.
+             (themeMode/visiblePanes/selectedElementId), thunks, index.
 theme/       MUI light/dark theme + ThemeModeProvider + useResolvedThemeMode().
 config/      Plain JS constants (externalLinks: the UI's outbound URLs). Build-time
              env vars, all set in the Netlify UI and absent in test/Storybook:

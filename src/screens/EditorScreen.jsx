@@ -4,19 +4,22 @@
  *   AppBar (top)
  *   | ComponentDrawer (left) | workspace | inspector rail (right) |
  *
- * The workspace switches on `viewMode` (IntelliJ-style markdown editing):
- *   - 'text'   -> the CodeMirror editor only
- *   - 'render' -> the rendered SVG only
- *   - 'split'  -> editor + render side by side
- * The inspector rail (outline tree + property inspector) is shown whenever the
- * render is visible, since element selection is a render-side concern.
+ * Each of the four columns can be shown independently from the toolbar or with
+ * Alt+1 through Alt+4 (Cmd+Option+1..4 on macOS). The inspector column contains
+ * the outline tree and property inspector stacked vertically.
  */
-import { useSelector } from 'react-redux';
+import { useRef } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import Box from '@mui/material/Box';
 
-import { selectViewMode } from '../store/uiSlice.js';
+import {
+  selectEditorWidthPercent,
+  selectVisiblePanes,
+  setEditorWidthPercent,
+} from '../store/uiSlice.js';
 import EditorAppBar from '../components/layout/EditorAppBar.jsx';
 import ComponentDrawer from '../components/layout/ComponentDrawer.jsx';
+import PaneDivider from '../components/layout/PaneDivider.jsx';
 import WiremarkEditor from '../features/editor/WiremarkEditor.jsx';
 import RenderPanel from '../features/render/RenderPanel.jsx';
 import OutlineTree from '../features/render/OutlineTree.jsx';
@@ -25,33 +28,47 @@ import ElementInspector from '../features/render/ElementInspector.jsx';
 const RAIL_WIDTH = 320;
 
 export default function EditorScreen() {
-  const viewMode = useSelector(selectViewMode);
-  const showEditor = viewMode === 'text' || viewMode === 'split';
-  const showRender = viewMode === 'render' || viewMode === 'split';
+  const dispatch = useDispatch();
+  const visiblePanes = useSelector(selectVisiblePanes);
+  const editorWidthPercent = useSelector(selectEditorWidthPercent);
+  const showComponents = visiblePanes.includes('components');
+  const showEditor = visiblePanes.includes('editor');
+  const showRenderer = visiblePanes.includes('renderer');
+  const showInspector = visiblePanes.includes('inspector');
+
+  // Once the editor has been hidden, re-showing it (toolbar, shortcut, or the
+  // editor/renderer swap) mounts it with focus so you can keep typing. Not set
+  // on first load, so opening the app doesn't steal focus.
+  const editorWasHiddenRef = useRef(false);
+  if (!showEditor) editorWasHiddenRef.current = true;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       <EditorAppBar />
 
       <Box sx={{ display: 'flex', flex: 1, minHeight: 0 }}>
-        <ComponentDrawer />
+        {showComponents && <ComponentDrawer />}
 
         {/* Workspace */}
         <Box sx={{ flex: 1, display: 'flex', minWidth: 0, bgcolor: 'background.default' }}>
           {showEditor && (
             <Box
               sx={{
-                flex: 1,
+                flex: showRenderer ? `0 0 ${editorWidthPercent}%` : 1,
                 minWidth: 0,
                 display: 'flex',
-                borderRight: showRender ? 1 : 0,
-                borderColor: 'divider',
               }}
             >
-              <WiremarkEditor />
+              <WiremarkEditor autoFocus={editorWasHiddenRef.current} />
             </Box>
           )}
-          {showRender && (
+          {showEditor && showRenderer && (
+            <PaneDivider
+              value={editorWidthPercent}
+              onChange={(value) => dispatch(setEditorWidthPercent(value))}
+            />
+          )}
+          {showRenderer && (
             <Box sx={{ flex: 1, minWidth: 0, display: 'flex' }}>
               <RenderPanel />
             </Box>
@@ -59,7 +76,7 @@ export default function EditorScreen() {
         </Box>
 
         {/* Inspector rail: outline (top) + property inspector (bottom) */}
-        {showRender && (
+        {showInspector && (
           <Box
             sx={{
               width: RAIL_WIDTH,

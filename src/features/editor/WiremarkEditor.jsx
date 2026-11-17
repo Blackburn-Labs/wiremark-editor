@@ -37,8 +37,10 @@ import { insertSmartNewline } from './smartNewline.js';
 /**
  * @param {object} props
  * @param {string} [props.height] CSS height for the editor surface (default '100%').
+ * @param {boolean} [props.autoFocus] focus the editor once when it mounts (used
+ *   when the pane is re-shown from the toolbar/shortcut, not on first load).
  */
-export default function WiremarkEditor({ height = '100%' }) {
+export default function WiremarkEditor({ height = '100%', autoFocus = false }) {
   const dispatch = useDispatch();
   const source = useSelector(selectSource);
   const resolvedMode = useResolvedThemeMode();
@@ -136,6 +138,7 @@ export default function WiremarkEditor({ height = '100%' }) {
         onChange={handleChange}
         onCreateEditor={handleCreateEditor}
         onUpdate={handleUpdate}
+        autoFocus={autoFocus}
         extensions={extensions}
         theme={resolvedMode}
         height="100%"
@@ -151,4 +154,5 @@ export default function WiremarkEditor({ height = '100%' }) {
 
 WiremarkEditor.propTypes = {
   height: PropTypes.string,
+  autoFocus: PropTypes.bool,
 };

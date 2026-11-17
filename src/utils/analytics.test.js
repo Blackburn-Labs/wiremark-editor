@@ -41,7 +41,7 @@ describe('EVENTS', () => {
       FILE_OPEN: 'file_open',
       FILE_SAVE: 'file_save',
       FILE_NEW: 'file_new',
-      VIEW_MODE: 'view_mode',
+      PANE_TOGGLE: 'pane_toggle',
     });
     expect(Object.isFrozen(EVENTS)).toBe(true);
   });
