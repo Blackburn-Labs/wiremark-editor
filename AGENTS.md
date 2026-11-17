@@ -94,6 +94,18 @@ training data):
    REGISTRY, getComponent, isKnownComponent, toFlowGraph, toMermaid, WiremarkError,
    NotImplementedError`.
 
+7. **Fonts (core 0.2.0).** Every SVG embeds Comic Neue (base64, family
+   `wiremark-sketch`, only the weights used) unless the document has a
+   `Font "X"` line; then core embeds nothing except the `fontFace` data the host
+   passes, and the stack is `'X', 'Comic Neue', 'Comic Sans MS', ...`. A
+   document's `Font` line beats every font render option. Core has width
+   presets (numbers only) for Patrick Hand / Architects Daughter, not exported --
+   mirrored in `utils/documentProps.CORE_WIDTH_PRESETS`. The **preview never
+   passes `fontFace`** (the picked font is loaded into the page with `FontFace`
+   instead); **SVG/PNG export does** (`utils/exportFonts.renderForExport`), since
+   an SVG used as an image can't see the page's fonts. svg2pdf can't use
+   embedded fonts, so PDF export stays on the plain render.
+
 ## Two parsers — don't confuse them
 
 | | `@wiremark/core` `parse()` | our `utils/wmParser.parse()` |
@@ -104,6 +116,16 @@ training data):
 
 `WiremarkDocument.parse(source)` → our parser → hydrates the domain tree and
 assigns ids. It tolerates anything the user types.
+
+**Directives are not frames.** Top-level `Font`, `Flow` and the `Icons` block
+(`utils/directives.js`) go to `doc.directives` (`WiremarkDirective`), each with
+`before` = frames preceding it, so the serializer puts them back in place and
+adding a `Font` line never shifts a frame's path id. Rows under `Icons`
+(lowercase `name "path"`) get no component diagnostic. `Font`/`Flow` are the
+**Document properties**: while either exists, the Outline shows a "Document" row
+selected with the reserved id **`DOCUMENT_ID` ('document')** -- the one selection
+id that is not a path id (lineIndex maps those lines to it; ElementInspector shows
+`DocumentPropertiesPanel` for it; never pass it to path-id treeOps functions).
 
 ## Folder structure (`src/`)
 
@@ -117,12 +139,17 @@ utils/       Pure business logic (the bulk of the unit tests):
              registryAdapter (core registry → editor metadata, null-safe),
              wmRender.safeRender (the ONLY entry to core render),
              exporters (svg/png/pdf), fileIo (open/save), pathId, lineIndex,
-             completionContext, iconNames, analytics (Aptabase event names +
+             completionContext, iconNames, directives (Font/Flow/Icons +
+             DOCUMENT_ID), documentProps (read/format the Font/Flow lines),
+             fontCatalog / fontSources / fontLoader / fontMeasure / exportFonts
+             (online fonts -- see Conventions), analytics (Aptabase event names +
              surfaceTag + the isAnalyticsEnabled gate; pure/testable),
              monitoring (Sentry gate, privacy settings + event/span/breadcrumb
              scrubbers; pure/testable).
 store/       Redux Toolkit. documentSlice (source + history), uiSlice
-             (themeMode/visiblePanes/selectedElementId), thunks, index.
+             (themeMode/visiblePanes/selectedElementId/fontSource), thunks, index.
+data/        Generated JSON shipped with the app, loaded lazily: fontCatalog
+             (`npm run fonts:catalog`), measureLabels (`npm run fonts:labels`).
 theme/       MUI light/dark theme + ThemeModeProvider + useResolvedThemeMode().
 config/      Plain JS constants (externalLinks: the UI's outbound URLs). Build-time
              env vars, all set in the Netlify UI and absent in test/Storybook:
@@ -138,12 +165,16 @@ features/
   editor/    CodeMirror text editor + wiremark StreamLanguage + completions.
   render/    RenderPanel (SVG + zoom/pan), OutlineTree, ElementInspector.
   properties/ PropertyForm + one control per field type.
+  document/  Document properties (Font / Flow): the shared form (File menu
+             dialog + Inspector panel), FontFamilyField, FontSourceDialog,
+             FontNotice (renderer "font not found" strip).
   elements/  Component-palette pieces (ElementList/Item/Card) used by the drawer.
 screens/     EditorScreen (composes everything), ErrorScreen (route errorElement).
 router/      createBrowserRouter; App.jsx is the layout shell.
 hooks/       React hooks for transient browser state: useInstallPrompt (PWA
              install lifecycle), useTrack (analytics seam -- the ONLY way UI
-             records Aptabase events; no-ops when disabled, never throws).
+             records Aptabase events; no-ops when disabled, never throws),
+             useFontCatalog, useFontStatus (is the document font usable here).
 test/        Vitest setup (jest-dom).
 ```
 
@@ -172,6 +203,11 @@ Every component in `components/` and `features/` has a co-located
 - **`line`** (1-based source line) rides on each `WiremarkElement` for editor
   cursor↔selection sync via `selectLineIndex`. It's positional/derived, so it is
   **deliberately excluded from `toJSON()`** (keeps round-trip tests stable).
+- **Document properties are just the `Font` / `Flow` lines.** The File >
+  Document properties dialog and the Inspector panel (one form) write them via
+  `treeOps.setDocumentProps/Font/Flow` (TD = default = no `Flow` line; custom font
+  off = no `Font` line). Hand-typing the lines is equivalent. Nothing about them
+  is stored anywhere else.
 - **Applying an edit** = `dispatch(applyEdit(newDoc.serialize()))` then
   `dispatch(selectElement(result.selectedId))`, or the `applyStructuralEdit`
   thunk. `setSource` is for raw typing (coalesces bursts into one undo entry);
@@ -212,6 +248,15 @@ Every component in `components/` and `features/` has a co-located
   (local builds report `local`/`development`) -- alerts filter on it. If what
   is collected changes, update `PrivacyDialog` to match.
 
+- **Online fonts must never leak the user's IP without consent.** Nothing is
+  fetched until the user picks a source (Bunny Fonts / Fontsource / Google) in
+  `FontSourceDialog`; the choice is a per-browser preference (`uiSlice.fontSource`,
+  never in the document). Only the picked font's Latin woff2 is requested
+  (`fontLoader`, no cookies/referrer). Font NAMES are searched in the bundled
+  `data/fontCatalog.json` -- never a remote list. A font that isn't installed and
+  isn't downloaded shows a neutral "not found" notice; it never auto-fetches.
+  Fonts installed on the computer are used by name and never embedded.
+
 ## Testing strategy
 
 - **Unit tests (Vitest)** cover business logic only — `domain/`, `utils/`,
@@ -231,6 +276,8 @@ npm run dev              # vite dev server (http://localhost:5173)
 npm run build            # production build (+ PWA service worker)
 npx vitest run           # unit tests
 npm run build-storybook  # compile all stories (also the integration compile gate)
+npm run fonts:catalog    # regenerate src/data/fontCatalog.json from Fontsource (dev only)
+npm run fonts:labels     # regenerate src/data/measureLabels.json from core's fixtures
 npm run storybook        # storybook dev server (port 6006)
 node scripts/make-square-icon.mjs && npx pwa-assets-generator ...  # regen PWA icons
 ```

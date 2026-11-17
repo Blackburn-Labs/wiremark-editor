@@ -36,11 +36,14 @@ const lastGood = { plain: '', interactive: '' };
  *
  * @param {string} source the wiremark text
  * @param {'light'|'dark'} [theme] render theme (defaults to 'light')
- * @param {{ interactive?: boolean }} [options] when `interactive` is true, core
+ * @param {{ interactive?: boolean, fontFace?: Array<{ family: string, weight?: number, data: Uint8Array|ArrayBuffer|string }> }} [options]
+ *   when `interactive` is true, core
  *   wraps each element and frame in a `<g>` carrying `data-wm-line` (plus
  *   `data-wm-id`/`data-wm-component`/`data-wm-to`) so the host can map a click
  *   back to the source line. Off by default, so exporters keep producing clean,
- *   byte-for-byte-identical markup.
+ *   byte-for-byte-identical markup. `fontFace` (exports only) is the document
+ *   font's file data for core to embed; the preview loads fonts into the page
+ *   instead (utils/fontLoader.js), so it never passes it.
  * @returns {RenderResult} on success `{ svg, diagnostics, error: null }`; on a
  *   hard error `{ svg: lastGood|'', diagnostics: [errorDiagnostic], error }`.
  */
@@ -48,7 +51,12 @@ export function safeRender(source, theme = 'light', options = {}) {
   const interactive = options.interactive === true;
   const key = interactive ? 'interactive' : 'plain';
   try {
-    const result = render(source, { theme, interactive });
+    /** @type {Record<string, unknown>} */
+    const renderOptions = { theme, interactive };
+    if (Array.isArray(options.fontFace) && options.fontFace.length > 0) {
+      renderOptions.fontFace = options.fontFace;
+    }
+    const result = render(source, renderOptions);
     const svg = result && typeof result.svg === 'string' ? result.svg : '';
     lastGood[key] = svg;
     /** @type {Diagnostic[]} */

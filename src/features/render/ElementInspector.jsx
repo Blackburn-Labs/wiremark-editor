@@ -11,6 +11,9 @@
  * When no element is selected (or the selection no longer resolves -- e.g. after
  * an undo or a text edit that deleted the node), it shows an empty
  * state.
+ *
+ * The Outline's "Document" row (`DOCUMENT_ID`) shows the Document properties
+ * panel instead, while the file still has a `Font` / `Flow` line.
  */
 import PropTypes from 'prop-types';
 import { useDispatch, useSelector } from 'react-redux';
@@ -27,6 +30,8 @@ import LastPageIcon from '@mui/icons-material/LastPage';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 
 import PropertyForm from '../properties/PropertyForm.jsx';
+import DocumentPropertiesPanel from '../document/DocumentPropertiesPanel.jsx';
+import { isDocumentId } from '../../utils/directives.js';
 import registryAdapter from '../../utils/registryAdapter.js';
 import {
   canMoveUp,
@@ -163,7 +168,11 @@ export default function ElementInspector() {
   const id = useSelector(selectSelectedElementId);
   const dispatch = useDispatch();
 
-  const element = id != null ? doc.findById(id) : undefined;
+  if (isDocumentId(id) && doc.hasDocumentProperties()) {
+    return <DocumentPropertiesPanel />;
+  }
+
+  const element = id != null && !isDocumentId(id) ? doc.findById(id) : undefined;
   const idOptions = registryAdapter.idsInDocument(doc).map((x) => `#${x}`);
 
   /** @param {{ doc: import('../../domain/WiremarkDocument.js').default, selectedId: string|null }} result */

@@ -8,6 +8,10 @@
  * `@mui/x-tree-view` is NOT installed, so this uses a nested MUI
  * `List`/`Collapse` instead of `SimpleTreeView`. A blank/unrecognized line
  * (`component === ''`) is labelled "(empty)" so nothing is invisible.
+ *
+ * When the file has a document-level `Font` / `Flow` line, a "Document" row
+ * sits above the frames (selection id `DOCUMENT_ID`); selecting it shows the
+ * Document properties in the Inspector. It exists only while such a line does.
  */
 import { useState } from 'react';
 import PropTypes from 'prop-types';
@@ -22,6 +26,7 @@ import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 
 import { selectDocument } from '../../store/documentSlice.js';
 import {
@@ -29,6 +34,7 @@ import {
   selectElement,
   selectHoveredElementId,
 } from '../../store/uiSlice.js';
+import { DOCUMENT_ID } from '../../utils/directives.js';
 
 /**
  * Human label for an element: `Component` + optional `#id`.
@@ -147,8 +153,9 @@ export function OutlineView({
   doc, selectedId = null, hoveredId = null, onSelect,
 }) {
   const frames = Array.from(doc?.frames ?? []);
+  const showDocument = typeof doc?.hasDocumentProperties === 'function' && doc.hasDocumentProperties();
 
-  if (frames.length === 0) {
+  if (frames.length === 0 && !showDocument) {
     return (
       <Box sx={{ p: 2 }}>
         <Typography variant="body2" color="text.secondary">
@@ -160,6 +167,22 @@ export function OutlineView({
 
   return (
     <List dense disablePadding sx={{ width: '100%' }}>
+      {showDocument && (
+        <ListItemButton
+          selected={selectedId === DOCUMENT_ID}
+          onClick={() => onSelect(DOCUMENT_ID)}
+          sx={{ pl: 1, py: 0.25 }}
+          dense
+        >
+          <ListItemIcon sx={{ minWidth: 28 }}>
+            <DescriptionOutlinedIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText
+            primary="Document"
+            slotProps={{ primary: { variant: 'body2', sx: { fontFamily: 'monospace' } } }}
+          />
+        </ListItemButton>
+      )}
       {frames.map((frame) => (
         <OutlineNode
           key={frame.id ?? labelFor(frame)}

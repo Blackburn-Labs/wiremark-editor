@@ -7,6 +7,7 @@ import {
   keylessSlotsFor,
 } from './registryAdapter.js';
 import { getComponent } from '@wiremark/core';
+import { DIRECTIVE_NAMES } from './directives.js';
 
 /**
  * Helper: build input where the cursor sits at the end of `lineText`.
@@ -20,8 +21,14 @@ const atEnd = (lineText, docText = '') => ({
 });
 
 describe('analyzeCompletion -- component kind', () => {
+  it('unindented line start -> component names plus the top-level directives', () => {
+    const r = analyzeCompletion(atEnd(''));
+    expect(r.kind).toBe('component');
+    expect(r.token).toBe('');
+    expect(r.options).toEqual([...DIRECTIVE_NAMES, ...componentNames()]);
+  });
+
   it.each([
-    ['empty line', ''],
     ['indentation only', '  '],
     ['deep indentation only', '      '],
   ])('line start (%s) -> component with all names', (_label, lineText) => {
@@ -197,7 +204,7 @@ describe('analyzeCompletion -- robustness', () => {
     // @ts-expect-error intentional empty input
     const r = analyzeCompletion({});
     expect(r.kind).toBe('component');
-    expect(r.options).toEqual(componentNames());
+    expect(r.options).toEqual([...DIRECTIVE_NAMES, ...componentNames()]);
   });
 
   it('undefined input does not throw', () => {

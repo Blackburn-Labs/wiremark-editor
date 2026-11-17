@@ -7,7 +7,9 @@
  * locally, the only analytics is privacy-first Aptabase (no cookies, no IP,
  * no personal data, never any wireframe content), and crash reports go to Sentry
  * with identity/IP collection off and document content scrubbed (see
- * utils/monitoring.js -- keep this copy in sync with it). A footer button links out to
+ * utils/monitoring.js -- keep this copy in sync with it), and online fonts are
+ * downloaded only from the font service the user picks (utils/fontLoader.js). A
+ * footer button links out to
  * `ISSUES_URL` for reporting an issue or privacy concern. Fully controlled via
  * `open` + `onClose`.
  */
@@ -59,7 +61,10 @@ export default function PrivacyDialog({ open, onClose }) {
 
           <Typography>
             Exports (SVG, PNG, and PDF) are generated entirely in your browser.
-            Your wireframe is never uploaded to any third-party service.
+            Your wireframe is never uploaded to any third-party service. (If you
+            choose to use online fonts, they are downloaded from the font service
+            you pick. That service sees your IP address and follows its own privacy
+            policy, not this one.)
           </Typography>
 
           <Typography>
@@ -82,8 +87,9 @@ export default function PrivacyDialog({ open, onClose }) {
           </Typography>
 
           <Typography>
-            The only thing kept in your browser between sessions is your
-            light/dark theme preference.
+            The only things kept in your browser between sessions are your
+            light/dark theme preference and, if you use online fonts, your chosen
+            font service and the fonts you downloaded.
           </Typography>
         </Stack>
       </DialogContent>

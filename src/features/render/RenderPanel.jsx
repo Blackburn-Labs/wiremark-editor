@@ -43,12 +43,19 @@ import CenterFocusStrongIcon from '@mui/icons-material/CenterFocusStrong';
 
 import { useSelector, useDispatch } from 'react-redux';
 import { safeRender } from '../../utils/wmRender.js';
-import { selectSource, selectLineIndex } from '../../store/documentSlice.js';
+import { selectSource, selectLineIndex, selectDocument } from '../../store/documentSlice.js';
 import {
   selectSelectedElementId,
   selectElement,
   setHoveredElement,
+  selectFontSource,
+  openFontSourceDialog,
 } from '../../store/uiSlice.js';
+import FontNotice from '../document/FontNotice.jsx';
+import useFontStatus from '../../hooks/useFontStatus.js';
+import { readDocumentProps } from '../../utils/documentProps.js';
+import { getFontSource } from '../../utils/fontSources.js';
+import { DOCUMENT_ID } from '../../utils/directives.js';
 import { useResolvedThemeMode } from '../../theme/ThemeModeProvider.jsx';
 
 const MIN_ZOOM = 0.2;
@@ -109,16 +116,19 @@ DiagnosticRow.propTypes = {
  * interactive SVG exposes (`data-wm-line`) -- so this surface never needs to know
  * about path ids: `selectedLine` says which element's `<g>` to ring with marching
  * ants, and `onPickLine` reports the line of a clicked element back to the host.
+ * `notice` (optional) is shown in a strip above the drawing -- the store-bound
+ * panel uses it for the "font not found" warning.
  * @param {{
  *   source: string,
  *   mode: 'light'|'dark',
  *   selectedLine?: number|null,
  *   onPickLine?: (line: number) => void,
  *   onHoverLine?: (line: number|null) => void,
+ *   notice?: import('react').ReactNode,
  * }} props
  */
 export function RenderSurface({
-  source, mode, selectedLine = null, onPickLine, onHoverLine,
+  source, mode, selectedLine = null, onPickLine, onHoverLine, notice = null,
 }) {
   const result = useMemo(() => safeRender(source, mode, { interactive: true }), [source, mode]);
   const { svg, diagnostics } = result;
@@ -358,6 +368,7 @@ export function RenderSurface({
         bgcolor: 'background.default',
       }}
     >
+      {notice && <Box sx={{ flexShrink: 0 }}>{notice}</Box>}
       <Box sx={{ position: 'relative', flex: 1, minHeight: 0, minWidth: 0 }}>
         {hasSvg ? (
           <>
@@ -515,6 +526,7 @@ RenderSurface.propTypes = {
   selectedLine: PropTypes.number,
   onPickLine: PropTypes.func,
   onHoverLine: PropTypes.func,
+  notice: PropTypes.node,
 };
 
 /**
@@ -529,6 +541,30 @@ export default function RenderPanel() {
   const { idToLine, lineToId } = useSelector(selectLineIndex);
   const selectedId = useSelector(selectSelectedElementId);
   const dispatch = useDispatch();
+
+  // The document font: warn (without fetching anything unasked) when the page
+  // can't use it. Dismissing hides the notice for that family this session.
+  const doc = useSelector(selectDocument);
+  const fontSource = useSelector(selectFontSource);
+  const family = useMemo(() => readDocumentProps(doc).font?.family ?? null, [doc]);
+  const fontStatus = useFontStatus(family, fontSource);
+  const [dismissedFamily, setDismissedFamily] = useState(/** @type {string|null} */ (null));
+  const showNotice = family != null
+    && dismissedFamily !== family
+    && fontStatus.family === family
+    && (fontStatus.status === 'missing' || fontStatus.status === 'failed');
+  const notice = showNotice ? (
+    <FontNotice
+      family={family}
+      status={/** @type {'missing'|'failed'} */ (fontStatus.status)}
+      canSearchOnline={fontStatus.inCatalog && !fontSource}
+      sourceLabel={getFontSource(fontSource)?.label}
+      onSearchOnline={() => dispatch(openFontSourceDialog())}
+      onRetry={fontStatus.retry}
+      onEditFont={() => dispatch(selectElement(DOCUMENT_ID))}
+      onDismiss={() => setDismissedFamily(family)}
+    />
+  ) : null;
 
   const selectedLine = selectedId != null && idToLine[selectedId] != null
     ? idToLine[selectedId]
@@ -559,6 +595,7 @@ export default function RenderPanel() {
       selectedLine={selectedLine}
       onPickLine={onPickLine}
       onHoverLine={onHoverLine}
+      notice={notice}
     />
   );
 }

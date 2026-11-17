@@ -15,24 +15,40 @@
  * normalized, tabs become spaces -- but token order, quoting style, keyless-vs-
  * keyed distinction, and comments are preserved.
  *
+ * Directives (`Font`, `Flow`, `Icons`) are emitted at column 0 just before the
+ * frame their `before` index names (`before >= frames.length` = after the last
+ * frame), keeping their source order among themselves. A missing or invalid
+ * `before` means the top of the file.
+ *
  * @typedef {import('./wmParser.js').Token} Token
  * @typedef {import('./wmParser.js').ElementPayload} ElementPayload
+ * @typedef {import('./wmParser.js').DirectivePayload} DirectivePayload
  */
 
 const INDENT = '  ';
 
 /**
- * @param {{ frames: ElementPayload[], trailingTrivia?: string[] }} doc
+ * @param {{ frames: ElementPayload[], directives?: Array<Partial<DirectivePayload>>, trailingTrivia?: string[] }} doc
  * @returns {string} wiremark text ending in a single newline
  */
 export function serialize(doc) {
   const frames = doc && Array.isArray(doc.frames) ? doc.frames : [];
+  const directives = doc && Array.isArray(doc.directives) ? doc.directives : [];
   const trailingTrivia = doc && Array.isArray(doc.trailingTrivia) ? doc.trailingTrivia : [];
+
+  /** @param {Partial<DirectivePayload>} d */
+  const slotOf = (d) => {
+    const n = Number(d && d.before);
+    return Number.isInteger(n) && n > 0 ? Math.min(n, frames.length) : 0;
+  };
 
   /** @type {string[]} */
   const lines = [];
-  for (const frame of frames) {
-    emitElement(frame, 0, lines);
+  for (let i = 0; i <= frames.length; i += 1) {
+    for (const directive of directives) {
+      if (slotOf(directive) === i) emitElement(/** @type {ElementPayload} */ (directive), 0, lines);
+    }
+    if (i < frames.length) emitElement(frames[i], 0, lines);
   }
   for (const trivia of trailingTrivia) {
     // Trivia at end of file is emitted at column 0, verbatim.

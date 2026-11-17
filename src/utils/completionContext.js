@@ -10,8 +10,10 @@
  *
  * The kinds of completion context:
  *  - 'component'  -- cursor sits at the start of a line (only indentation before
- *                    it). options = every component name.
- *  - 'keyless'    -- a bare word being typed after a known component. options =
+ *                    it). options = every component name, plus the document
+ *                    directives (`Font`, `Flow`, `Icons`) on an unindented line.
+ *  - 'keyless'    -- a bare word being typed after a known component (or after
+ *                    a top-level `Flow`, whose options are LR / TD). options =
  *                    that component's keyless ENUM values + boolean-flag prop
  *                    names + (when the component has an icon keyless/prop) icon
  *                    names.
@@ -31,6 +33,18 @@ import {
   idsInDocument,
 } from './registryAdapter.js';
 import { getComponent, isKnownComponent } from '@wiremark/core';
+import { DIRECTIVE_NAMES, FLOW_VALUES } from './directives.js';
+
+/**
+ * Component suggestions for a line start. Directives only make sense at the top
+ * level, so they join the list only when the line has no indentation.
+ * @param {string} before the line text left of the cursor
+ * @returns {string[]}
+ */
+function lineStartOptions(before) {
+  const names = componentNames();
+  return /^\S*$/.test(before) ? [...DIRECTIVE_NAMES, ...names] : names;
+}
 
 /**
  * @typedef {object} CompletionContext
@@ -159,7 +173,7 @@ export function analyzeCompletion(input) {
     return {
       kind: 'component',
       token: '',
-      options: componentNames(),
+      options: lineStartOptions(before),
     };
   }
 
@@ -178,7 +192,17 @@ export function analyzeCompletion(input) {
     return {
       kind: 'component',
       token: fragment,
-      options: componentNames(),
+      options: lineStartOptions(before),
+    };
+  }
+
+  // --- top-level `Flow`: suggest its two directions ---------------------
+  if (component === 'Flow' && /^Flow\s/.test(before)) {
+    return {
+      kind: 'keyless',
+      token: fragment,
+      componentName: component,
+      options: [...FLOW_VALUES],
     };
   }
 

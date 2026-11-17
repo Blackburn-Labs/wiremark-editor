@@ -6,11 +6,18 @@
  *
  * Pure: walks the derived document tree (whose nodes carry `id` + `line`). Each
  * source content line holds at most one element, so `lineToId` is unambiguous.
+ *
+ * Document-property directives (`Font`, `Flow`) all map to the single Document
+ * row (`DOCUMENT_ID`); its `idToLine` entry is the first such line. Other
+ * directives (the `Icons` block) map to nothing.
  */
+
+import { DOCUMENT_ID, isDocumentDirective } from './directives.js';
 
 /**
  * @typedef {{ id: string|null, line: number|null, children: Iterable<any> }} NodeLike
- * @typedef {{ frames: Iterable<NodeLike> }} DocLike
+ * @typedef {{ component: string, line: number|null }} DirectiveLike
+ * @typedef {{ frames: Iterable<NodeLike>, directives?: Iterable<DirectiveLike> }} DocLike
  */
 
 /**
@@ -36,6 +43,15 @@ export function buildLineIndex(doc) {
   };
 
   for (const frame of doc.frames) walk(frame);
+
+  for (const directive of doc.directives ?? []) {
+    if (!directive || !isDocumentDirective(directive.component)) continue;
+    if (typeof directive.line !== 'number') continue;
+    lineToId[directive.line] = DOCUMENT_ID;
+    if (!(DOCUMENT_ID in idToLine) || directive.line < idToLine[DOCUMENT_ID]) {
+      idToLine[DOCUMENT_ID] = directive.line;
+    }
+  }
   return { idToLine, lineToId };
 }
 

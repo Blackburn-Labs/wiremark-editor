@@ -67,4 +67,12 @@ export const EVENTS = Object.freeze({
   FILE_NEW: 'file_new',
   /** A workspace pane was toggled. props: { pane, visible, trigger } */
   PANE_TOGGLE: 'pane_toggle',
+  /**
+   * Document properties changed (dialog Save or Inspector edit). props:
+   * { font: 'default'|'online'|'local', flow: 'TD'|'LR', trigger: 'dialog'|'inspector' }.
+   * Never the font family name.
+   */
+  DOCUMENT_PROPERTIES: 'document_properties',
+  /** The online font source was set. props: { source: 'bunny'|'fontsource'|'google'|'off' } */
+  FONT_SOURCE: 'font_source',
 });

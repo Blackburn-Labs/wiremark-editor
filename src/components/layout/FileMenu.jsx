@@ -13,8 +13,13 @@
  *   name/location) then `markSaved`. It is shown only when the File System
  *   Access API is supported; without it, plain "Download" already covers the
  *   only possible behavior, so a second download-everything item would be noise.
- * - Export renders the current `safeRender(source, mode).svg` then calls the
- *   matching `exporters.export*`.
+ * - Document properties... opens the modal that writes the document-level
+ *   `Font` / `Flow` lines (DocumentPropertiesDialog).
+ * - Export renders the document via `exportFonts.renderForExport` (which embeds
+ *   the document's online font for SVG/PNG, downloading it from the chosen
+ *   source) then calls the matching `exporters.export*`. If the font can't be
+ *   embedded, the export still goes ahead and a short notice says so. PDF uses
+ *   the plain render: svg2pdf can't use embedded fonts.
  * - Global keyboard shortcuts (captured on `window`): Cmd/Ctrl+S = Save,
  *   Cmd/Ctrl+Shift+S = Save As, Cmd/Ctrl+O = Open. Calling `preventDefault()` on
  *   these is the whole point -- it stops the browser (and the installed PWA)
@@ -40,6 +45,8 @@ import SaveAsIcon from '@mui/icons-material/SaveAs';
 import DownloadIcon from '@mui/icons-material/Download';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import TuneIcon from '@mui/icons-material/Tune';
+import Snackbar from '@mui/material/Snackbar';
 
 import {
   selectSource,
@@ -58,6 +65,9 @@ import {
 } from '../../utils/fileIo.js';
 import { safeRender } from '../../utils/wmRender.js';
 import { exportSvg, exportPng, exportPdf } from '../../utils/exporters.js';
+import { renderForExport } from '../../utils/exportFonts.js';
+import { selectFontSource } from '../../store/uiSlice.js';
+import DocumentPropertiesDialog from '../../features/document/DocumentPropertiesDialog.jsx';
 import { EVENTS } from '../../utils/analytics.js';
 import useTrack from '../../hooks/useTrack.js';
 import ConfirmDialog from '../common/ConfirmDialog.jsx';
@@ -69,6 +79,9 @@ export default function FileMenu({ anchorEl, open, onClose }) {
   const fileName = useSelector(selectFileName);
   const isDirty = useSelector(selectIsDirty);
   const hasHandle = useSelector(selectHasHandle);
+  const fontSource = useSelector(selectFontSource);
+  const [docPropsOpen, setDocPropsOpen] = useState(false);
+  const [exportNotice, setExportNotice] = useState(/** @type {string|null} */ (null));
 
   const [exportAnchor, setExportAnchor] = useState(null);
   /** @type {['new'|'open'|null, import('react').Dispatch<*>]} */
@@ -151,7 +164,14 @@ export default function FileMenu({ anchorEl, open, onClose }) {
   /** @param {'svg'|'png'|'pdf'} kind */
   const handleExport = async (kind) => {
     closeAll();
-    const { svg } = safeRender(source, renderTheme);
+    let svg;
+    if (kind === 'pdf') {
+      ({ svg } = safeRender(source, renderTheme));
+    } else {
+      const result = await renderForExport(source, { fontSource, theme: renderTheme });
+      svg = result.svg;
+      if (result.notice) setExportNotice(result.notice);
+    }
     if (!svg) return;
     const base = (fileName && fileName.replace(/\.wiremark$/i, '')) || 'wireframe';
     if (kind === 'svg') exportSvg(svg, `${base}.svg`);
@@ -225,6 +245,17 @@ export default function FileMenu({ anchorEl, open, onClose }) {
         )}
         <Divider />
         <MenuItem
+          onClick={() => {
+            closeAll();
+            setDocPropsOpen(true);
+          }}
+        >
+          <ListItemIcon>
+            <TuneIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Document properties...</ListItemText>
+        </MenuItem>
+        <MenuItem
           onClick={(e) => setExportAnchor(e.currentTarget)}
           aria-haspopup="true"
         >
@@ -247,6 +278,16 @@ export default function FileMenu({ anchorEl, open, onClose }) {
         <MenuItem onClick={() => handleExport('png')}>PNG</MenuItem>
         <MenuItem onClick={() => handleExport('pdf')}>PDF</MenuItem>
       </Menu>
+
+      <DocumentPropertiesDialog open={docPropsOpen} onClose={() => setDocPropsOpen(false)} />
+
+      <Snackbar
+        open={exportNotice !== null}
+        autoHideDuration={8000}
+        onClose={() => setExportNotice(null)}
+        message={exportNotice}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
 
       <ConfirmDialog
         open={pendingAction !== null}

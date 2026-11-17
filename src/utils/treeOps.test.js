@@ -8,7 +8,9 @@ import {
   canDescend, descend,
   updateElementTokens, setElementComment,
   removeElement, addChild,
+  setDocumentFont, setDocumentFlow, setDocumentProps,
 } from './treeOps.js';
+import { DOCUMENT_ID } from './directives.js';
 
 /** Convenience: a frame with three buttons under a Stack. */
 const STD = 'Wireframe\n  Stack\n    Button "A"\n    Button "B"\n    Button "C"\n';
@@ -209,5 +211,73 @@ describe('treeOps - stale/nonexistent selection (regression)', () => {
     expect(() => ascend(doc, '5.5.5')).not.toThrow();
     expect(moveUp(doc, '5.5.5').doc).toBe(doc);
     expect(ascend(doc, '5.5.5').doc).toBe(doc);
+  });
+});
+
+// --------------------------------------------------------------------------
+// Document properties (Font / Flow lines)
+// --------------------------------------------------------------------------
+
+describe('setDocumentFont / setDocumentFlow / setDocumentProps', () => {
+  const BASE = 'Wireframe #a\n  Button "A"\n';
+
+  it('adds a Font line at the top, separated from the first frame, and selects the Document row', () => {
+    const { doc, selectedId } = setDocumentFont(WiremarkDocument.parse(BASE), { family: 'Kalam', width: 1.03, leading: null });
+    expect(doc.serialize()).toBe('Font "Kalam" width=1.03\n\nWireframe #a\n  Button "A"\n');
+    expect(selectedId).toBe(DOCUMENT_ID);
+    // Frame ids are unchanged by the new line.
+    expect(doc.findById('0.0')?.component).toBe('Button');
+  });
+
+  it('replaces the existing Font line in place, keeping its comment, and drops duplicates', () => {
+    const src = '// header\nWireframe #a\nFont "Old" // keep me\nFont "Dupe"\n';
+    const { doc } = setDocumentFont(WiremarkDocument.parse(src), { family: 'New', width: null, leading: null });
+    expect(doc.serialize()).toBe('// header\nWireframe #a\nFont "New" // keep me\n');
+  });
+
+  it('removes every Font line (and the separator it added) when set to null', () => {
+    const added = setDocumentFont(WiremarkDocument.parse(BASE), { family: 'Kalam', width: null, leading: null }).doc;
+    const { doc, selectedId } = setDocumentFont(added, null);
+    expect(doc.serialize()).toBe(BASE);
+    expect(selectedId).toBeNull();
+  });
+
+  it('adds Flow LR after a top Font line; TD removes it', () => {
+    const withFont = WiremarkDocument.parse('Font "Kalam"\n\nWireframe #a\n');
+    const lr = setDocumentFlow(withFont, 'LR').doc;
+    expect(lr.serialize()).toBe('Font "Kalam"\nFlow LR\n\nWireframe #a\n');
+    expect(setDocumentFlow(lr, 'TD').doc.serialize()).toBe('Font "Kalam"\n\nWireframe #a\n');
+  });
+
+  it('keeps the Document row selected while any Font/Flow line remains', () => {
+    const both = WiremarkDocument.parse('Font "Kalam"\nFlow LR\n\nWireframe #a\n');
+    const { doc, selectedId } = setDocumentFont(both, null);
+    expect(doc.serialize()).toBe('Flow LR\n\nWireframe #a\n');
+    expect(selectedId).toBe(DOCUMENT_ID);
+  });
+
+  it('applies font + flow in one rebuild', () => {
+    const { doc } = setDocumentProps(WiremarkDocument.parse(BASE), {
+      font: { family: 'Kalam', width: 1.03, leading: 1.6 },
+      flow: 'LR',
+    });
+    expect(doc.serialize()).toBe('Font "Kalam" width=1.03 leading=1.6\nFlow LR\n\nWireframe #a\n  Button "A"\n');
+  });
+
+  it('refuses a family core would reject', () => {
+    const before = WiremarkDocument.parse(BASE);
+    const { doc, selectedId } = setDocumentFont(before, { family: 'Bad"Name', width: null, leading: null });
+    expect(doc).toBe(before);
+    expect(selectedId).toBeNull();
+  });
+
+  it('a frame removal keeps later directives after the same frames', () => {
+    const doc = WiremarkDocument.parse('Wireframe #a\nWireframe #b\nFlow LR\nWireframe #c\n');
+    expect(removeElement(doc, '0').doc.serialize()).toBe('Wireframe #b\nFlow LR\nWireframe #c\n');
+  });
+
+  it('element edits leave directives untouched', () => {
+    const doc = WiremarkDocument.parse('Font "Kalam"\n\nWireframe\n  Stack\n    Button "A"\n    Button "B"\n');
+    expect(moveDown(doc, '0.0.0').doc.serialize()).toBe('Font "Kalam"\n\nWireframe\n  Stack\n    Button "B"\n    Button "A"\n');
   });
 });
