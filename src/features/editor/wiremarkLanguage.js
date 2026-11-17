@@ -6,6 +6,8 @@
  *
  * Token mapping (per the contract):
  *  - the first word of a line (PascalCase) at line start => `component`
+ *  - a top-level directive keyword (`Font`, `Flow`, `Icons`
+ *    at column 0)                                        => `definitionKeyword`
  *  - `key=`                                              => `propertyName`
  *  - a double-quoted run                                  => `string`
  *  - `#word`                                              => `labelName` (id)
@@ -21,6 +23,7 @@
 
 import { StreamLanguage, HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
+import { isDirectiveName } from '../../utils/directives.js';
 
 /**
  * Dracula palette (subset) -- used on the DARK editor background.
@@ -110,8 +113,13 @@ const wiremarkStreamParser = {
     state.atLineStart = false;
 
     // The first non-space run on a line: classify as component when PascalCase.
+    // An unindented directive keyword (Font / Flow / Icons) is not a component.
     if (wasLineStart) {
+      const atColumnZero = stream.column() === 0;
       const word = stream.match(/^\S+/);
+      if (word && atColumnZero && isDirectiveName(word[0])) {
+        return 'definitionKeyword';
+      }
       if (word && isPascalCase(word[0])) {
         return 'tagName';
       }
@@ -166,6 +174,7 @@ export function wiremarkLanguage() {
 function makeHighlightStyle(palette) {
   return HighlightStyle.define([
     { tag: tags.tagName, color: palette.component, fontWeight: '600' },
+    { tag: tags.definitionKeyword, color: palette.keyword, fontWeight: '600' },
     { tag: tags.propertyName, color: palette.property },
     { tag: tags.string, color: palette.string },
     { tag: tags.comment, color: palette.comment, fontStyle: 'italic' },

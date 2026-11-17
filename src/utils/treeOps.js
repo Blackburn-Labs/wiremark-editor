@@ -3,6 +3,13 @@ import { getComponent } from '@wiremark/core';
 import WiremarkDocument from '../domain/WiremarkDocument.js';
 import { parsePathId, pathId } from './pathId.js';
 import { serialize } from './wmSerializer.js';
+import { DOCUMENT_ID, isDocumentDirective } from './directives.js';
+import {
+  cleanFamily,
+  flowTokens,
+  fontTokens,
+  isValidFamily,
+} from './documentProps.js';
 
 /**
  * treeOps -- the single owner of ALL structural edits.
@@ -19,6 +26,8 @@ import { serialize } from './wmSerializer.js';
  * node by computing its NEW path explicitly.
  *
  * @typedef {import('./wmParser.js').ElementPayload} ElementPayload
+ * @typedef {import('./wmParser.js').DirectivePayload} DirectivePayload
+ * @typedef {{ frames: ElementPayload[], directives: DirectivePayload[], trailingTrivia: string[] }} Tree
  * @typedef {import('./wmParser.js').Token} Token
  * @typedef {{ doc: WiremarkDocument, selectedId: string|null }} EditResult
  */
@@ -28,14 +37,17 @@ import { serialize } from './wmSerializer.js';
 // --------------------------------------------------------------------------
 
 /**
- * Snapshot a document as its mutable plain payload (frames array + trailing).
+ * Snapshot a document as its mutable plain payload (frames array, directives,
+ * trailing trivia). Directives ride along untouched by element edits; they keep
+ * their `before` position so the rebuilt source still has them in place.
  * @param {WiremarkDocument} doc
- * @returns {{ frames: ElementPayload[], trailingTrivia: string[] }}
+ * @returns {Tree}
  */
 function snapshot(doc) {
   const json = doc.toJSON();
   return {
     frames: /** @type {ElementPayload[]} */ (json.frames),
+    directives: /** @type {DirectivePayload[]} */ (/** @type {unknown} */ (json.directives)),
     trailingTrivia: /** @type {string[]} */ (json.trailingTrivia),
   };
 }
@@ -45,7 +57,7 @@ function snapshot(doc) {
  * Serialize-then-parse is the canonical round-trip that recomputes path ids and
  * guarantees the result matches what the next reparse of the source produces, so
  * selection stays pinned.
- * @param {{ frames: ElementPayload[], trailingTrivia: string[] }} tree
+ * @param {Tree} tree
  * @returns {WiremarkDocument}
  */
 function rebuild(tree) {
@@ -279,6 +291,10 @@ export function removeElement(doc, id) {
   const loc = locate(tree, path);
   if (!loc) return unchanged(doc, id);
   loc.siblings.splice(loc.index, 1);
+  if (loc.parentPath.length === 0) {
+    // A frame went away: directives that sat after it keep their place.
+    for (const d of tree.directives) if (d.before > loc.index) d.before -= 1;
+  }
   const parentId = loc.parentPath.length > 0 ? pathId(loc.parentPath) : null;
   return { doc: rebuild(tree), selectedId: parentId };
 }
@@ -318,4 +334,114 @@ export function addChild(doc, parentId, partial) {
  */
 function unchanged(doc, selectedId) {
   return { doc, selectedId };
+}
+
+// --------------------------------------------------------------------------
+// Document properties (the top-level `Font` / `Flow` lines)
+// --------------------------------------------------------------------------
+
+/**
+ * @typedef {import('./documentProps.js').FontSetting} FontSetting
+ * @typedef {import('./documentProps.js').FlowDirection} FlowDirection
+ * @typedef {import('./documentProps.js').DocumentProps} DocumentProps
+ */
+
+/**
+ * Write (or, with `tokens === null`, remove) the directive `name` in a payload
+ * tree. Replaces the FIRST existing line's tokens in place (keeping its comment
+ * and position) and drops any duplicates; otherwise inserts a new line at the
+ * top of the file -- after an existing top `Font` line when adding `Flow`, so the
+ * two read Font-then-Flow. A blank line separates new top directives from the
+ * first frame, and is removed again when the last top directive goes.
+ * @param {Tree} tree
+ * @param {string} name
+ * @param {Token[]|null} tokens
+ */
+function writeDirective(tree, name, tokens) {
+  const first = tree.directives.findIndex((d) => d.component === name);
+  const hadTop = tree.directives.some((d) => !(d.before > 0));
+  if (tokens === null) {
+    tree.directives = tree.directives.filter((d) => d.component !== name);
+  } else if (first !== -1) {
+    tree.directives[first].tokens = tokens.map((t) => ({ ...t }));
+    tree.directives = tree.directives.filter((d, i) => i === first || d.component !== name);
+  } else {
+    /** @type {DirectivePayload} */
+    const directive = {
+      component: name, tokens: tokens.map((t) => ({ ...t })), comment: null,
+      leadingTrivia: [], children: [], line: 0, before: 0,
+    };
+    const afterFont = name === 'Font'
+      ? -1
+      : tree.directives.findIndex((d) => d.component === 'Font' && !(d.before > 0));
+    tree.directives.splice(afterFont + 1, 0, directive);
+  }
+  const hasTop = tree.directives.some((d) => !(d.before > 0));
+  const firstFrame = tree.frames[0];
+  if (!firstFrame) return;
+  const trivia = firstFrame.leadingTrivia || [];
+  if (!hadTop && hasTop && trivia[0] !== '') {
+    firstFrame.leadingTrivia = ['', ...trivia];
+  } else if (hadTop && !hasTop && trivia[0] === '') {
+    firstFrame.leadingTrivia = trivia.slice(1);
+  }
+}
+
+/**
+ * The selection after a Document-properties edit: the Document row while the
+ * file still has a Font/Flow line, else nothing.
+ * @param {WiremarkDocument} doc
+ * @returns {string|null}
+ */
+function documentSelection(doc) {
+  return doc.directives.some((d) => isDocumentDirective(d.component)) ? DOCUMENT_ID : null;
+}
+
+/**
+ * Set the document font (`Font "Family" [width=] [leading=]`), or remove the
+ * line with `null` (back to the built-in Comic Neue). An invalid family name
+ * (one core would reject) leaves the document unchanged.
+ * @param {WiremarkDocument} doc
+ * @param {FontSetting|null} font
+ * @returns {EditResult}
+ */
+export function setDocumentFont(doc, font) {
+  return setDocumentProps(doc, { font });
+}
+
+/**
+ * Set the flow direction. `TD` is core's default, so it removes the `Flow` line.
+ * @param {WiremarkDocument} doc
+ * @param {FlowDirection} flow
+ * @returns {EditResult}
+ */
+export function setDocumentFlow(doc, flow) {
+  return setDocumentProps(doc, { flow });
+}
+
+/**
+ * Apply Document properties in ONE rebuild (one undo step for a dialog Save).
+ * Only the keys present are touched. Selection lands on the Document row while
+ * the file has a Font/Flow line afterwards, else null.
+ * @param {WiremarkDocument} doc
+ * @param {Partial<DocumentProps>} props
+ * @returns {EditResult}
+ */
+export function setDocumentProps(doc, props) {
+  const tree = snapshot(doc);
+  if (props && 'font' in props) {
+    const font = props.font;
+    if (font) {
+      const family = cleanFamily(font.family);
+      if (!isValidFamily(family)) return unchanged(doc, documentSelection(doc));
+      writeDirective(tree, 'Font', fontTokens({ ...font, family }));
+    } else {
+      writeDirective(tree, 'Font', null);
+    }
+  }
+  if (props && 'flow' in props) {
+    writeDirective(tree, 'Flow', props.flow === 'LR' ? flowTokens('LR') : null);
+  }
+  const next = rebuild(tree);
+  return { doc: next, selectedId: documentSelection(next) };
 }

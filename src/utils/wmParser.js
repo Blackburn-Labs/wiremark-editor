@@ -8,7 +8,14 @@
  * problems surface as advisory `diagnostics` for the gutter, never blocking.
  *
  * Output shape:
- *   parse(source) => { frames: ElementPayload[], trailingTrivia: string[], diagnostics: Diagnostic[] }
+ *   parse(source) => { frames: ElementPayload[], directives: DirectivePayload[], trailingTrivia: string[], diagnostics: Diagnostic[] }
+ *
+ *   Top-level directive lines (`Font`, `Flow`, the `Icons` block -- see
+ *   utils/directives.js) are NOT frames: they go to `directives`, each tagged
+ *   with `before` = how many frames precede it, so the serializer can put it
+ *   back where it was. Rows nested under a directive (Icons entries are
+ *   lowercase `name "path"` lines) are kept as its children without the
+ *   "not a valid component name" diagnostic.
  *
  *   ElementPayload = WiremarkElement.toJSON() minus `id` (the document assigns
  *   path ids on hydration):
@@ -21,15 +28,19 @@
  *   `line` is the element's 1-based content line in the source (for editor
  *   cursor <-> selection sync). It is positional/derived and NOT persisted in
  *   WiremarkElement.toJSON().
+ * @typedef {ElementPayload & { before: number }} DirectivePayload
+ *   A top-level directive line; `before` is the number of frames preceding it.
  * @typedef {{ line: number, severity: 'error'|'warning', message: string }} Diagnostic
  */
+
+import { isDirectiveName } from './directives.js';
 
 export const INDENT_WIDTH = 2;
 
 /**
  * Parse wiremark source text into an editable tree. Never throws.
  * @param {string} source
- * @returns {{ frames: ElementPayload[], trailingTrivia: string[], diagnostics: Diagnostic[] }}
+ * @returns {{ frames: ElementPayload[], directives: DirectivePayload[], trailingTrivia: string[], diagnostics: Diagnostic[] }}
  */
 export function parse(source) {
   /** @type {Diagnostic[]} */
@@ -53,7 +64,13 @@ export function parse(source) {
 
   /** @type {ElementPayload[]} root-level frames */
   const roots = [];
-  /** Stack of currently-open ancestors by depth. @type {Array<{ depth: number, payload: ElementPayload }>} */
+  /** @type {DirectivePayload[]} root-level directives, in source order */
+  const directives = [];
+  /**
+   * Stack of currently-open ancestors by depth. `inDirective` marks a directive
+   * and everything nested under it.
+   * @type {Array<{ depth: number, payload: ElementPayload, inDirective: boolean }>}
+   */
   const stack = [];
   /** Trivia (blank / full-line comment) waiting to attach to the next element. @type {string[]} */
   let pendingTrivia = [];
@@ -85,7 +102,19 @@ export function parse(source) {
 
     // --- Tokenize the content line.
     const { component, tokens, comment, isComponent } = parseContentLine(trimmed);
-    if (!isComponent) {
+
+    // --- Find the parent by depth. Pop deeper/equal open ancestors.
+    while (stack.length > 0 && stack[stack.length - 1].depth >= depth) {
+      stack.pop();
+    }
+    const parent = stack.length > 0 ? stack[stack.length - 1] : null;
+    const inDirective = parent ? parent.inDirective : false;
+    // A directive is a top-level line whose keyword core intercepts (Font, Flow,
+    // Icons). Anywhere else the same word is just an (unknown) component.
+    const isDirective = parent === null && isComponent && isDirectiveName(component);
+
+    // Rows under a directive (Icons entries) are not components by design.
+    if (!isComponent && !inDirective) {
       diagnostics.push({
         line: lineNo,
         severity: 'error',
@@ -104,23 +133,22 @@ export function parse(source) {
     };
     pendingTrivia = [];
 
-    // --- Attach into the tree by depth. Pop deeper/equal open ancestors.
-    while (stack.length > 0 && stack[stack.length - 1].depth >= depth) {
-      stack.pop();
-    }
-
-    if (stack.length === 0) {
+    if (isDirective) {
+      // Remember how many frames came before it, so it serializes in place.
+      directives.push(Object.assign(payload, { before: roots.length }));
+    } else if (parent === null) {
       // Top level: a frame root.
       roots.push(payload);
     } else {
-      stack[stack.length - 1].payload.children.push(payload);
+      parent.payload.children.push(payload);
     }
 
-    stack.push({ depth, payload });
+    stack.push({ depth, payload, inDirective: inDirective || isDirective });
   });
 
   return {
     frames: roots,
+    directives,
     trailingTrivia: pendingTrivia,
     diagnostics,
   };

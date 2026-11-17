@@ -4,11 +4,15 @@
  * theme mode (light/dark/system), visible workspace panes, the currently
  * selected element id (for the render-panel property editor), and the currently
  * hovered element id (the render-panel cursor target, mirrored in the
- * OutlineTree so you can preview what a click would select).
+ * OutlineTree so you can preview what a click would select), the online font
+ * source the user chose (a per-browser preference, never part of the document;
+ * null = online fonts off), and whether the "Load online fonts from" prompt is
+ * open.
  *
  * NOTE: skeleton. The feature teams expand this (e.g. drawer state, dialogs).
  */
 import { createSlice } from '@reduxjs/toolkit';
+import { isFontSourceId } from '../utils/fontSources.js';
 
 /** @typedef {'light'|'dark'|'system'} ThemeMode */
 /** @typedef {'components'|'editor'|'renderer'|'inspector'} PaneId */
@@ -16,6 +20,7 @@ import { createSlice } from '@reduxjs/toolkit';
 const THEME_MODE_STORAGE_KEY = 'wiremark.themeMode';
 const VISIBLE_PANES_STORAGE_KEY = 'wiremark.visiblePanes';
 const EDITOR_WIDTH_STORAGE_KEY = 'wiremark.editorWidthPercent';
+const FONT_SOURCE_STORAGE_KEY = 'wiremark.fontSource';
 
 export const EDITOR_WIDTH_MIN = 15;
 export const EDITOR_WIDTH_MAX = 85;
@@ -104,6 +109,36 @@ function loadEditorWidth() {
     : normalizeEditorWidth(stored) ?? EDITOR_WIDTH_DEFAULT;
 }
 
+/**
+ * The online font source chosen in this browser, or null (online fonts off).
+ * @returns {import('../utils/fontSources.js').FontSourceId|null}
+ */
+function loadFontSource() {
+  if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') {
+    return null;
+  }
+  try {
+    const stored = localStorage.getItem(FONT_SOURCE_STORAGE_KEY);
+    return isFontSourceId(stored) ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+/** @param {string|null} source */
+function persistFontSource(source) {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    if (source === null) {
+      if (typeof localStorage.removeItem === 'function') localStorage.removeItem(FONT_SOURCE_STORAGE_KEY);
+    } else if (typeof localStorage.setItem === 'function') {
+      localStorage.setItem(FONT_SOURCE_STORAGE_KEY, source);
+    }
+  } catch {
+    // Storage blocked: the choice still applies for this session.
+  }
+}
+
 /** @param {PaneId[]} panes */
 function persistVisiblePanes(panes) {
   if (typeof localStorage !== 'undefined' && typeof localStorage.setItem === 'function') {
@@ -129,6 +164,10 @@ const initialState = {
   selectedElementId: null,
   /** @type {string|null} id of the element under the render-panel cursor (hover preview) */
   hoveredElementId: null,
+  /** @type {import('../utils/fontSources.js').FontSourceId|null} where online fonts download from; null = off */
+  fontSource: loadFontSource(),
+  /** Whether the "Load online fonts from" prompt is open. */
+  fontSourceDialogOpen: false,
 };
 
 const uiSlice = createSlice({
@@ -177,6 +216,23 @@ const uiSlice = createSlice({
     setHoveredElement(state, action) {
       state.hoveredElementId = action.payload;
     },
+    /**
+     * Choose where online fonts download from, or turn them off with null.
+     * Persisted per browser; never written into the document.
+     * @param {{ fontSource: string|null }} state
+     * @param {{ payload: string|null }} action
+     */
+    setFontSource(state, action) {
+      const next = isFontSourceId(action.payload) ? action.payload : null;
+      state.fontSource = next;
+      persistFontSource(next);
+    },
+    openFontSourceDialog(state) {
+      state.fontSourceDialogOpen = true;
+    },
+    closeFontSourceDialog(state) {
+      state.fontSourceDialogOpen = false;
+    },
   },
 });
 
@@ -188,6 +244,9 @@ export const {
   selectElement,
   clearSelection,
   setHoveredElement,
+  setFontSource,
+  openFontSourceDialog,
+  closeFontSourceDialog,
 } = uiSlice.actions;
 
 export const selectThemeMode = (state) => state.ui.themeMode;
@@ -195,5 +254,7 @@ export const selectVisiblePanes = (state) => state.ui.visiblePanes;
 export const selectEditorWidthPercent = (state) => state.ui.editorWidthPercent;
 export const selectSelectedElementId = (state) => state.ui.selectedElementId;
 export const selectHoveredElementId = (state) => state.ui.hoveredElementId;
+export const selectFontSource = (state) => state.ui.fontSource;
+export const selectFontSourceDialogOpen = (state) => state.ui.fontSourceDialogOpen;
 
 export default uiSlice.reducer;

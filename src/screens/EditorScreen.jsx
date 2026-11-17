@@ -24,6 +24,7 @@ import WiremarkEditor from '../features/editor/WiremarkEditor.jsx';
 import RenderPanel from '../features/render/RenderPanel.jsx';
 import OutlineTree from '../features/render/OutlineTree.jsx';
 import ElementInspector from '../features/render/ElementInspector.jsx';
+import FontSourceDialog from '../features/document/FontSourceDialog.jsx';
 
 const RAIL_WIDTH = 320;
 
@@ -98,6 +99,9 @@ export default function EditorScreen() {
           </Box>
         )}
       </Box>
+
+      {/* "Load online fonts from": opened from the font list or the renderer notice. */}
+      <FontSourceDialog />
     </Box>
   );
 }

@@ -13,6 +13,11 @@ import reducer, {
   selectEditorWidthPercent,
   selectSelectedElementId,
   selectHoveredElementId,
+  setFontSource,
+  openFontSourceDialog,
+  closeFontSourceDialog,
+  selectFontSource,
+  selectFontSourceDialogOpen,
 } from './uiSlice.js';
 
 /** @param {object} uiState */
@@ -26,6 +31,7 @@ describe('uiSlice', () => {
     vi.stubGlobal('localStorage', {
       getItem: (key) => values.get(key) ?? null,
       setItem: (key, value) => values.set(key, String(value)),
+      removeItem: (key) => values.delete(key),
       clear: () => values.clear(),
     });
   });
@@ -198,5 +204,25 @@ describe('uiSlice', () => {
     expect(selectHoveredElementId(root(state))).toBe('0.2.1');
     state = reducer(state, setHoveredElement(null));
     expect(selectHoveredElementId(root(state))).toBeNull();
+  });
+
+  it('online fonts are off until a source is chosen; the choice persists and can be turned off', () => {
+    let state = reducer(undefined, { type: '@@INIT' });
+    expect(selectFontSource(root(state))).toBeNull();
+    state = reducer(state, setFontSource('bunny'));
+    expect(selectFontSource(root(state))).toBe('bunny');
+    expect(localStorage.getItem('wiremark.fontSource')).toBe('bunny');
+    state = reducer(state, setFontSource('nonsense'));
+    expect(selectFontSource(root(state))).toBeNull();
+    expect(localStorage.getItem('wiremark.fontSource')).toBeNull();
+  });
+
+  it('opens and closes the font source prompt', () => {
+    let state = reducer(undefined, { type: '@@INIT' });
+    expect(selectFontSourceDialogOpen(root(state))).toBe(false);
+    state = reducer(state, openFontSourceDialog());
+    expect(selectFontSourceDialogOpen(root(state))).toBe(true);
+    state = reducer(state, closeFontSourceDialog());
+    expect(selectFontSourceDialogOpen(root(state))).toBe(false);
   });
 });

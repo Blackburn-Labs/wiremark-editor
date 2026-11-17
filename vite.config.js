@@ -42,7 +42,35 @@ export default defineConfig({
       // No service-worker source maps: when the Sentry build sets
       // build.sourcemap, workbox would otherwise emit sw.js.map AFTER Sentry's
       // post-upload map cleanup, leaving it publicly served.
-      workbox: { sourcemap: false },
+      workbox: {
+        sourcemap: false,
+        // Online fonts (Document properties): only ever requested from the font
+        // service the user picked, and only the font they picked. Keep each file
+        // once downloaded, so the preview and exports work offline afterwards.
+        // Also precache the Comic Neue copy the font picker measures widths
+        // against, so measuring an installed font works offline.
+        globPatterns: ['**/*.{js,css,html}', 'assets/comic-neue-*.woff2'],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/(fonts\.bunny\.net\/[^?#]+|cdn\.jsdelivr\.net\/fontsource\/fonts\/[^?#]+|fonts\.gstatic\.com\/[^?#]+)\.woff2$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'wiremark-online-fonts',
+              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          {
+            urlPattern: /^https:\/\/fonts\.googleapis\.com\/css2\?/,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'wiremark-online-font-css',
+              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+        ],
+      },
       includeAssets: ['favicon.ico', 'wiremark-icon.svg', 'apple-touch-icon-180x180.png'],
       manifest: {
         id: '/',

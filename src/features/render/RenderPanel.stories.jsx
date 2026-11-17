@@ -3,6 +3,7 @@ import { useDispatch } from 'react-redux';
 import Box from '@mui/material/Box';
 
 import RenderPanel, { RenderSurface } from './RenderPanel.jsx';
+import FontNotice from '../document/FontNotice.jsx';
 import { setSource } from '../../store/documentSlice.js';
 
 const VALID_SOURCE = `Wireframe #home mobile
@@ -42,6 +43,27 @@ export default meta;
 
 export const Valid = {
   args: { source: VALID_SOURCE },
+};
+
+/**
+ * The document names a font the page can't use: the warning strip sits above
+ * the drawing, which falls back to Comic Neue.
+ */
+export const FontNotFound = {
+  args: {
+    source: `Font "Lobster" width=0.92\n\n${VALID_SOURCE}`,
+    notice: (
+      <FontNotice
+        family="Lobster"
+        status="missing"
+        canSearchOnline
+        onSearchOnline={() => {}}
+        onRetry={() => {}}
+        onEditFont={() => {}}
+        onDismiss={() => {}}
+      />
+    ),
+  },
 };
 
 export const Invalid = {

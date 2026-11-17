@@ -79,3 +79,24 @@ function StoreBoundOutline() {
 export const StoreBound = {
   render: () => <StoreBoundOutline />,
 };
+
+/**
+ * A file with document-level `Font` / `Flow` lines gets a "Document" row above
+ * the frames (selected here, as it is right after a Document properties Save).
+ */
+export const WithDocumentRow = {
+  render: () => (
+    <InteractiveDocumentOutline />
+  ),
+};
+
+function InteractiveDocumentOutline() {
+  const [selectedId, setSelectedId] = useState('document');
+  return (
+    <OutlineView
+      doc={WiremarkDocument.parse(`Font "Patrick Hand"\nFlow LR\n\n${SAMPLE_SOURCE}`)}
+      selectedId={selectedId}
+      onSelect={setSelectedId}
+    />
+  );
+}
