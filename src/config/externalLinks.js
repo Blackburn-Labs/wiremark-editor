@@ -25,3 +25,6 @@ export const SOURCE_URL = 'https://github.com/Blackburn-Labs/wiremark';
 
 /** Aptabase privacy policy (Privacy & Data dialog -- analytics paragraph). */
 export const APTABASE_PRIVACY_URL = 'https://aptabase.com/legal/privacy';
+
+/** Sentry privacy policy (Privacy & Data dialog -- error-reporting paragraph). */
+export const SENTRY_PRIVACY_URL = 'https://sentry.io/privacy/';
